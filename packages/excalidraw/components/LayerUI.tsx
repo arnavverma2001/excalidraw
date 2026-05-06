@@ -79,7 +79,7 @@ import type {
 
 interface LayerUIProps {
   actionManager: ActionManager;
-  appState: UIAppState;
+  appState: AppState;
   files: BinaryFiles;
   canvas: HTMLCanvasElement;
   setAppState: React.Component<any, AppState>["setState"];
@@ -602,6 +602,8 @@ const LayerUI = ({
             {renderFixedSideContainer()}
             <Footer
               appState={appState}
+              elements={elements}
+              elementsMap={app.scene.getNonDeletedElementsMap()}
               actionManager={actionManager}
               showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
@@ -639,7 +641,7 @@ const LayerUI = ({
   );
 
   return (
-    <UIAppStateContext.Provider value={appState}>
+    <UIAppStateContext.Provider value={appState as unknown as UIAppState}>
       <TunnelsJotaiProvider>
         <TunnelsContext.Provider value={tunnels}>
           {layerUIJSX}
@@ -653,6 +655,14 @@ const stripIrrelevantAppStateProps = (appState: AppState): UIAppState => {
   const { cursorButton, scrollX, scrollY, ...ret } = appState;
   return ret;
 };
+
+const minimapViewportComparable = (appState: AppState) => ({
+  scrollX: appState.scrollX,
+  scrollY: appState.scrollY,
+  zoom: appState.zoom.value,
+  width: appState.width,
+  height: appState.height,
+});
 
 const areEqual = (prevProps: LayerUIProps, nextProps: LayerUIProps) => {
   // short-circuit early
@@ -673,7 +683,12 @@ const areEqual = (prevProps: LayerUIProps, nextProps: LayerUIProps) => {
         selectedElementIds: isShallowEqual,
         selectedGroupIds: isShallowEqual,
       },
-    ) && isShallowEqual(prev, next)
+    ) &&
+    isShallowEqual(
+      minimapViewportComparable(prevAppState as AppState),
+      minimapViewportComparable(nextAppState as AppState),
+    ) &&
+    isShallowEqual(prev, next)
   );
 };
 

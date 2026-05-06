@@ -93,6 +93,7 @@
     "canvasColors": "Used on canvas",
     "canvasBackground": "Canvas background",
     "drawingCanvas": "Drawing canvas",
+    "sceneMinimap": "Scene minimap",
     "clearCanvas": "Clear canvas",
     "layers": "Layers",
     "actions": "Actions",

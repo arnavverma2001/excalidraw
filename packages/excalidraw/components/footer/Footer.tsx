@@ -1,5 +1,10 @@
 import clsx from "clsx";
 
+import type {
+  NonDeletedExcalidrawElement,
+  NonDeletedSceneElementsMap,
+} from "@excalidraw/element/types";
+
 import { actionShortcuts } from "../../actions";
 import { useTunnels } from "../../context/tunnels";
 import { ExitZenModeButton, UndoRedoActions, ZoomActions } from "../Actions";
@@ -7,16 +12,23 @@ import { HelpButton } from "../HelpButton";
 import { Section } from "../Section";
 import Stack from "../Stack";
 
+import Minimap from "../Minimap";
+
 import type { ActionManager } from "../../actions/manager";
-import type { UIAppState } from "../../types";
+
+import type { AppState } from "../../types";
 
 const Footer = ({
   appState,
+  elements,
+  elementsMap,
   actionManager,
   showExitZenModeBtn,
   renderWelcomeScreen,
 }: {
-  appState: UIAppState;
+  appState: AppState;
+  elements: readonly NonDeletedExcalidrawElement[];
+  elementsMap: NonDeletedSceneElementsMap;
   actionManager: ActionManager;
   showExitZenModeBtn: boolean;
   renderWelcomeScreen: boolean;
@@ -35,6 +47,12 @@ const Footer = ({
         })}
       >
         <Stack.Col gap={2}>
+          <Minimap
+            elements={elements}
+            elementsMap={elementsMap}
+            appState={appState}
+          />
+
           <Section heading="canvasActions">
             <ZoomActions
               renderAction={actionManager.renderAction}
