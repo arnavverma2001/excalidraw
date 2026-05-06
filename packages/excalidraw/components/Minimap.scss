@@ -1,0 +1,33 @@
+.excalidraw {
+  .minimap {
+    pointer-events: none;
+    align-self: flex-start;
+
+    &__svg {
+      display: block;
+      border-radius: var(--border-radius-lg);
+      shape-rendering: geometricPrecision;
+      vertical-align: middle;
+    }
+
+    &__element-root {
+      pointer-events: none;
+    }
+
+    /* Selection ring overlaid without recoloring the faithful shape below */
+    .minimap__element.minimap__element--selected {
+      stroke: var(--color-selection, #6965db);
+      stroke-opacity: 0.95;
+      stroke-width: 2px;
+    }
+
+    &__viewport {
+      fill: none;
+      stroke: var(--color-primary);
+      stroke-width: 4;
+      vector-effect: non-scaling-stroke;
+      paint-order: stroke fill;
+      stroke-linejoin: round;
+    }
+  }
+}
