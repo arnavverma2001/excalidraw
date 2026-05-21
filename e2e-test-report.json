@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-05-21T02:57:54.701Z",
+  "pr": {
+    "number": 3,
+    "title": "feat: add invert colors button in top-left toolbar",
+    "url": "https://github.com/arnavverma2001/excalidraw/pull/3",
+    "branch": "feat/invert-colors-button"
+  },
+  "baseUrl": "http://localhost:3001",
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7
+  },
+  "results": [
+    {
+      "name": "App loads and canvas is visible",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "UI elements are cohesive",
+      "passed": true,
+      "details": "toolbar:true, menu:true, invert:true, undo:true, aligned:true"
+    },
+    {
+      "name": "Invert colors button (PR feature)",
+      "passed": true,
+      "details": "aria-label: Invert colors, bg check: canvas-present"
+    },
+    {
+      "name": "Shapes and text can be drawn on the page",
+      "passed": true,
+      "details": "rectangle (undo enabled): true, text: true"
+    },
+    {
+      "name": "Colors can be changed",
+      "passed": true,
+      "details": "color swatches available: 10, interaction: changed"
+    },
+    {
+      "name": "Selection and move of elements works",
+      "passed": true,
+      "details": "handles: false, multi-select UI: true"
+    },
+    {
+      "name": "Export functionality saves the image",
+      "passed": true,
+      "details": "export dialog opened, preview canvas visible"
+    }
+  ]
+}
