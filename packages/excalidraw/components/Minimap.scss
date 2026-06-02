@@ -1,0 +1,85 @@
+.excalidraw {
+  .minimap-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    pointer-events: var(--ui-pointerEvents);
+  }
+
+  .minimap {
+    pointer-events: var(--ui-pointerEvents);
+    align-self: flex-start;
+    background: var(--island-bg-color);
+    border: 1px solid var(--default-border-color);
+    box-shadow: var(--shadow-island);
+    overflow: hidden;
+
+    &__svg {
+      display: block;
+      border-radius: var(--border-radius-lg);
+      cursor: crosshair;
+      shape-rendering: geometricPrecision;
+      touch-action: none;
+      vertical-align: middle;
+    }
+
+    &__element-root {
+      pointer-events: none;
+    }
+
+    /* Selection ring overlaid without recoloring the faithful shape below */
+    .minimap__element.minimap__element--selected {
+      stroke: var(--color-selection, #6965db);
+      stroke-opacity: 0.95;
+      stroke-width: 2px;
+    }
+
+    &__viewport {
+      fill: var(--color-primary);
+      fill-opacity: 0.1;
+      stroke: var(--color-primary);
+      stroke-width: 4;
+      vector-effect: non-scaling-stroke;
+      paint-order: stroke fill;
+      stroke-linejoin: round;
+    }
+  }
+
+  .minimap-toggle {
+    pointer-events: var(--ui-pointerEvents);
+    border: 1px solid var(--default-border-color);
+    border-radius: var(--border-radius-lg);
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    cursor: pointer;
+    font-family: var(--ui-font);
+    font-size: 0.6875rem;
+    line-height: 1;
+    padding: 0.35rem 0.45rem;
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+
+    &:active {
+      border-color: var(--color-primary);
+    }
+
+    &--expanded {
+      opacity: 0;
+      transform: translateY(2px);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+
+    &--collapsed {
+      box-shadow: var(--shadow-island);
+    }
+  }
+
+  .minimap-container:hover .minimap-toggle--expanded,
+  .minimap-container:focus-within .minimap-toggle--expanded {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

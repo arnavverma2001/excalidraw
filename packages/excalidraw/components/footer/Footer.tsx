@@ -1,5 +1,10 @@
 import clsx from "clsx";
 
+import type {
+  NonDeletedExcalidrawElement,
+  NonDeletedSceneElementsMap,
+} from "@excalidraw/element/types";
+
 import { actionShortcuts } from "../../actions";
 import { useTunnels } from "../../context/tunnels";
 import { ExitZenModeButton, UndoRedoActions, ZoomActions } from "../Actions";
@@ -7,16 +12,25 @@ import { HelpButton } from "../HelpButton";
 import { Section } from "../Section";
 import Stack from "../Stack";
 
+import Minimap, { type MinimapProps } from "../Minimap";
+
 import type { ActionManager } from "../../actions/manager";
-import type { UIAppState } from "../../types";
+
+import type { AppState } from "../../types";
 
 const Footer = ({
   appState,
+  elements,
+  elementsMap,
+  setAppState,
   actionManager,
   showExitZenModeBtn,
   renderWelcomeScreen,
 }: {
-  appState: UIAppState;
+  appState: AppState;
+  elements: readonly NonDeletedExcalidrawElement[];
+  elementsMap: NonDeletedSceneElementsMap;
+  setAppState: MinimapProps["setAppState"];
   actionManager: ActionManager;
   showExitZenModeBtn: boolean;
   renderWelcomeScreen: boolean;
@@ -59,12 +73,20 @@ const Footer = ({
           "transition-right": appState.zenModeEnabled,
         })}
       >
-        <div style={{ position: "relative" }}>
-          {renderWelcomeScreen && <WelcomeScreenHelpHintTunnel.Out />}
-          <HelpButton
-            onClick={() => actionManager.executeAction(actionShortcuts)}
+        <Stack.Col gap={2} align="end">
+          <Minimap
+            elements={elements}
+            elementsMap={elementsMap}
+            appState={appState}
+            setAppState={setAppState}
           />
-        </div>
+          <div style={{ position: "relative" }}>
+            {renderWelcomeScreen && <WelcomeScreenHelpHintTunnel.Out />}
+            <HelpButton
+              onClick={() => actionManager.executeAction(actionShortcuts)}
+            />
+          </div>
+        </Stack.Col>
       </div>
       <ExitZenModeButton
         actionManager={actionManager}
