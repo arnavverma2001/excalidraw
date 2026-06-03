@@ -41,6 +41,7 @@ import Stack from "./Stack";
 import { UserList } from "./UserList";
 import { PenModeButton } from "./PenModeButton";
 import Footer from "./footer/Footer";
+import Minimap from "./Minimap";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import MainMenu from "./main-menu/MainMenu";
 import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
@@ -606,6 +607,12 @@ const LayerUI = ({
               showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
             />
+            <Minimap
+              elements={elements}
+              elementsMap={app.scene.getNonDeletedElementsMap()}
+              appState={app.state}
+              setAppState={setAppState}
+            />
             {(appState.toast || appState.scrolledOutside) && (
               <div className="floating-status-stack">
                 {appState.toast && (
@@ -654,6 +661,15 @@ const stripIrrelevantAppStateProps = (appState: AppState): UIAppState => {
   return ret;
 };
 
+const minimapViewportComparable = (appState: AppState) => ({
+  scrollX: appState.scrollX,
+  scrollY: appState.scrollY,
+  zoom: appState.zoom.value,
+  width: appState.width,
+  height: appState.height,
+  minimapEnabled: appState.minimapEnabled,
+});
+
 const areEqual = (prevProps: LayerUIProps, nextProps: LayerUIProps) => {
   // short-circuit early
   if (prevProps.children !== nextProps.children) {
@@ -673,7 +689,12 @@ const areEqual = (prevProps: LayerUIProps, nextProps: LayerUIProps) => {
         selectedElementIds: isShallowEqual,
         selectedGroupIds: isShallowEqual,
       },
-    ) && isShallowEqual(prev, next)
+    ) &&
+    isShallowEqual(
+      minimapViewportComparable(prevAppState as AppState),
+      minimapViewportComparable(nextAppState as AppState),
+    ) &&
+    isShallowEqual(prev, next)
   );
 };
 

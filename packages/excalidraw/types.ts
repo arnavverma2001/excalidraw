@@ -424,6 +424,8 @@ export interface AppState {
     duration?: number;
   } | null;
   zenModeEnabled: boolean;
+  /** Whether the canvas minimap panel is expanded (preference persisted locally). */
+  minimapEnabled: boolean;
   theme: Theme;
   /** grid cell px size */
   gridSize: number;

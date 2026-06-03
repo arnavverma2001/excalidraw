@@ -189,7 +189,10 @@
     "boxSelectionContain": "Wrap",
     "boxSelectionOverlap": "Overlap",
     "arrowBinding": "Arrow binding",
-    "midpointSnapping": "Snap to midpoints"
+    "midpointSnapping": "Snap to midpoints",
+    "sceneMinimap": "Scene minimap",
+    "hideMinimap": "Hide minimap",
+    "showMinimap": "Show minimap"
   },
   "elementLink": {
     "title": "Link to object",
