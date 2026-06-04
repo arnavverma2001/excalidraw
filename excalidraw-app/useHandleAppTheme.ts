@@ -5,31 +5,34 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import type { Theme } from "@excalidraw/element/types";
 
 import { STORAGE_KEYS } from "./app_constants";
+import {
+  applyDocumentTheme,
+  getStoredAppThemePreference,
+  resolveEditorTheme,
+  type AppThemePreference,
+} from "./appTheme";
 
 const getDarkThemeMediaQuery = (): MediaQueryList | undefined =>
   window.matchMedia?.("(prefers-color-scheme: dark)");
 
 export const useHandleAppTheme = () => {
-  const [appTheme, setAppTheme] = useState<Theme | "system">(() => {
-    return (
-      (localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_THEME) as
-        | Theme
-        | "system"
-        | null) || THEME.LIGHT
-    );
-  });
-  const [editorTheme, setEditorTheme] = useState<Theme>(THEME.LIGHT);
+  const [appTheme, setAppTheme] = useState<AppThemePreference>(
+    getStoredAppThemePreference,
+  );
+  const [editorTheme, setEditorTheme] = useState<Theme>(() =>
+    resolveEditorTheme(getStoredAppThemePreference()),
+  );
 
   useEffect(() => {
     const mediaQuery = getDarkThemeMediaQuery();
 
-    const handleChange = (e: MediaQueryListEvent) => {
-      setEditorTheme(e.matches ? THEME.DARK : THEME.LIGHT);
+    const handleChange = () => {
+      if (appTheme === "system") {
+        setEditorTheme(resolveEditorTheme("system"));
+      }
     };
 
-    if (appTheme === "system") {
-      mediaQuery?.addEventListener("change", handleChange);
-    }
+    mediaQuery?.addEventListener("change", handleChange);
 
     const handleKeydown = (event: KeyboardEvent) => {
       if (
@@ -52,18 +55,14 @@ export const useHandleAppTheme = () => {
         capture: true,
       });
     };
-  }, [appTheme, editorTheme, setAppTheme]);
+  }, [appTheme, editorTheme]);
 
   useLayoutEffect(() => {
     localStorage.setItem(STORAGE_KEYS.LOCAL_STORAGE_THEME, appTheme);
 
-    if (appTheme === "system") {
-      setEditorTheme(
-        getDarkThemeMediaQuery()?.matches ? THEME.DARK : THEME.LIGHT,
-      );
-    } else {
-      setEditorTheme(appTheme);
-    }
+    const resolvedTheme = resolveEditorTheme(appTheme);
+    setEditorTheme(resolvedTheme);
+    applyDocumentTheme(resolvedTheme);
   }, [appTheme]);
 
   return { editorTheme, appTheme, setAppTheme };
