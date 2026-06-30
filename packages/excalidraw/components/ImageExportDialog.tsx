@@ -12,7 +12,6 @@ import {
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
 import {
-  actionExportWithDarkMode,
   actionChangeExportBackground,
   actionChangeExportEmbedScene,
   actionChangeExportScale,
@@ -242,22 +241,6 @@ const ImageExportModal = ({
               setExportWithBackground(checked);
               actionManager.executeAction(
                 actionChangeExportBackground,
-                "ui",
-                checked,
-              );
-            }}
-          />
-        </ExportSetting>
-        <ExportSetting
-          label={t("imageExportDialog.label.darkMode")}
-          name="exportDarkModeSwitch"
-        >
-          <Switch
-            name="exportDarkModeSwitch"
-            checked={exportWithDarkMode}
-            onChange={(checked) => {
-              actionManager.executeAction(
-                actionExportWithDarkMode,
                 "ui",
                 checked,
               );

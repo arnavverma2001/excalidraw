@@ -267,13 +267,13 @@ describe("<Excalidraw/>", () => {
   });
 
   describe("Test theme prop", () => {
-    it("should show the theme toggle by default", async () => {
+    it("should not show the theme toggle in the default menu (dark mode removed)", async () => {
       const { container } = await render(<Excalidraw />);
       expect(h.state.theme).toBe(THEME.LIGHT);
       //open menu
       toggleMenu(container);
       const darkModeToggle = queryByTestId(container, "toggle-dark-mode");
-      expect(darkModeToggle).toBeTruthy();
+      expect(darkModeToggle).toBe(null);
     });
 
     it("should not show theme toggle when the theme prop is defined", async () => {
@@ -285,7 +285,7 @@ describe("<Excalidraw/>", () => {
       expect(queryByTestId(container, "toggle-dark-mode")).toBe(null);
     });
 
-    it("should show theme mode toggle when `UIOptions.canvasActions.toggleTheme` is true", async () => {
+    it("should not show theme toggle in the default menu even when `UIOptions.canvasActions.toggleTheme` is true", async () => {
       const { container } = await render(
         <Excalidraw
           theme={THEME.DARK}
@@ -296,7 +296,7 @@ describe("<Excalidraw/>", () => {
       //open menu
       toggleMenu(container);
       const darkModeToggle = queryByTestId(container, "toggle-dark-mode");
-      expect(darkModeToggle).toBeTruthy();
+      expect(darkModeToggle).toBe(null);
     });
 
     it("should not show theme toggle when `UIOptions.canvasActions.toggleTheme` is false", async () => {

@@ -122,7 +122,6 @@ const DefaultMainMenu: React.FC<{
         <MainMenu.DefaultItems.Socials />
       </MainMenu.Group>
       <MainMenu.Separator />
-      <MainMenu.DefaultItems.ToggleTheme />
       <MainMenu.DefaultItems.ChangeCanvasBackground />
     </MainMenu>
   );

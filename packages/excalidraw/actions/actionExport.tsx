@@ -9,11 +9,10 @@ import { getNonDeletedElements } from "@excalidraw/element";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
-import type { ExcalidrawElement, Theme } from "@excalidraw/element/types";
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { useEditorInterface } from "../components/App";
 import { CheckboxItem } from "../components/CheckboxItem";
-import { DarkModeToggle } from "../components/DarkModeToggle";
 import { ProjectName } from "../components/ProjectName";
 import { Toast } from "../components/Toast";
 import { ToolButton } from "../components/ToolButton";
@@ -488,22 +487,4 @@ export const actionExportWithDarkMode = register<
       captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
-  PanelComponent: ({ appState, updateData }) => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        marginTop: "-45px",
-        marginBottom: "10px",
-      }}
-    >
-      <DarkModeToggle
-        value={appState.exportWithDarkMode ? THEME.DARK : THEME.LIGHT}
-        onChange={(theme: Theme) => {
-          updateData(theme === THEME.DARK);
-        }}
-        title={t("imageExportDialog.label.darkMode")}
-      />
-    </div>
-  ),
 });

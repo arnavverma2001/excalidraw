@@ -8,8 +8,6 @@ import React from "react";
 
 import { isDevEnv } from "@excalidraw/common";
 
-import type { Theme } from "@excalidraw/element/types";
-
 import { LanguageList } from "../app-language/LanguageList";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
@@ -19,8 +17,6 @@ export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
   isCollaborating: boolean;
   isCollabEnabled: boolean;
-  theme: Theme | "system";
-  setTheme: (theme: Theme | "system") => void;
   refresh: () => void;
 }> = React.memo((props) => {
   return (
@@ -78,11 +74,6 @@ export const AppMainMenu: React.FC<{
       )}
       <MainMenu.Separator />
       <MainMenu.DefaultItems.Preferences />
-      <MainMenu.DefaultItems.ToggleTheme
-        allowSystemTheme
-        theme={props.theme}
-        onSelect={props.setTheme}
-      />
       <MainMenu.ItemCustom>
         <LanguageList style={{ width: "100%" }} />
       </MainMenu.ItemCustom>

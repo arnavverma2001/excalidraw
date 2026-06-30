@@ -2,7 +2,7 @@
 
 exports[`<Excalidraw/> > <MainMenu/> > should render main menu with host menu items if passed from host 1`] = `
 <div
-  aria-labelledby="radix-:r85:"
+  aria-labelledby="radix-:r7q:"
   aria-orientation="vertical"
   class="dropdown-menu main-menu"
   data-align="start"
@@ -12,7 +12,7 @@ exports[`<Excalidraw/> > <MainMenu/> > should render main menu with host menu it
   data-state="open"
   data-testid="dropdown-menu"
   dir="ltr"
-  id="radix-:r86:"
+  id="radix-:r7r:"
   role="menu"
   style="outline: none; --radix-dropdown-menu-content-transform-origin: var(--radix-popper-transform-origin); --radix-dropdown-menu-content-available-width: var(--radix-popper-available-width); --radix-dropdown-menu-content-available-height: var(--radix-popper-available-height); --radix-dropdown-menu-trigger-width: var(--radix-popper-anchor-width); --radix-dropdown-menu-trigger-height: var(--radix-popper-anchor-height); animation: none;"
   tabindex="-1"
@@ -632,52 +632,6 @@ exports[`<Excalidraw/> > Test UIOptions prop > Test canvasActions > should rende
     <div
       style="height: 1px; margin: 6px 0px; flex: 0 0 auto;"
     />
-    <button
-      aria-label="Dark mode"
-      class="radix-menu-item dropdown-menu-item dropdown-menu-item-base"
-      data-orientation="vertical"
-      data-radix-collection-item=""
-      data-testid="toggle-dark-mode"
-      role="menuitem"
-      tabindex="-1"
-      title="Dark mode"
-    >
-      <div
-        class="dropdown-menu-item__icon"
-      >
-        <svg
-          aria-hidden="true"
-          class=""
-          fill="none"
-          focusable="false"
-          role="img"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          viewBox="0 0 20 20"
-        >
-          <path
-            clip-rule="evenodd"
-            d="M10 2.5h.328a6.25 6.25 0 0 0 6.6 10.372A7.5 7.5 0 1 1 10 2.493V2.5Z"
-            stroke="currentColor"
-          />
-        </svg>
-      </div>
-      <div
-        class="dropdown-menu-item__text"
-      >
-        <span
-          style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"
-        >
-          Dark mode
-        </span>
-      </div>
-      <div
-        class="dropdown-menu-item__shortcut"
-      >
-        Shift+Alt+D
-      </div>
-    </button>
     <div
       style="margin-top: 0.75rem;"
     >
@@ -759,7 +713,7 @@ exports[`<Excalidraw/> > Test UIOptions prop > Test canvasActions > should rende
               style="width: 1px; height: 1rem; margin: 0px auto;"
             />
             <button
-              aria-controls="radix-:r16:"
+              aria-controls="radix-:r15:"
               aria-expanded="false"
               aria-haspopup="dialog"
               aria-label="Canvas background"
