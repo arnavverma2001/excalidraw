@@ -50,6 +50,7 @@ import { sidebarRightIcon } from "./icons";
 import { DefaultSidebar } from "./DefaultSidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
 import { Stats } from "./Stats";
+import { Minimap } from "./Minimap";
 import ElementLinkDialog from "./ElementLinkDialog";
 import { ErrorDialog } from "./ErrorDialog";
 import { EyeDropper, activeEyeDropperAtom } from "./EyeDropper";
@@ -451,6 +452,12 @@ const LayerUI = ({
 
   const isSidebarDocked = useAtomValue(isSidebarDockedAtom);
 
+  const shouldShowMinimap =
+    editorInterface.formFactor !== "phone" &&
+    !appState.zenModeEnabled &&
+    !appState.viewModeEnabled &&
+    appState.openDialog?.name !== "elementLinkSelector";
+
   const layerUIJSX = (
     <>
       {/* ------------------------- tunneled UI ---------------------------- */}
@@ -630,6 +637,7 @@ const LayerUI = ({
                 )}
               </div>
             )}
+            {shouldShowMinimap && <Minimap />}
           </div>
           {renderSidebars()}
         </>

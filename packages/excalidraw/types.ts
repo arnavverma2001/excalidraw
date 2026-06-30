@@ -448,6 +448,9 @@ export interface AppState {
     /** bitmap. Use `STATS_PANELS` bit values */
     panels: number;
   };
+  minimap: {
+    collapsed: boolean;
+  };
   showHyperlinkPopup: false | "info" | "editor";
   selectedLinearElement: LinearElementEditor | null;
   snapLines: readonly SnapLine[];

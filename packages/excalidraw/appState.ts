@@ -99,6 +99,9 @@ export const getDefaultAppState = (): Omit<
       open: false,
       panels: STATS_PANELS.generalStats | STATS_PANELS.elementProperties,
     },
+    minimap: {
+      collapsed: false,
+    },
     suggestedBinding: null,
     frameRendering: { enabled: true, clip: true, name: true, outline: true },
     frameToHighlight: null,
@@ -230,6 +233,7 @@ const APP_STATE_STORAGE_CONF = (<
   selectionElement: { browser: false, export: false, server: false },
   shouldCacheIgnoreZoom: { browser: true, export: false, server: false },
   stats: { browser: true, export: false, server: false },
+  minimap: { browser: true, export: false, server: false },
   suggestedBinding: { browser: false, export: false, server: false },
   frameRendering: { browser: false, export: false, server: false },
   frameToHighlight: { browser: false, export: false, server: false },
