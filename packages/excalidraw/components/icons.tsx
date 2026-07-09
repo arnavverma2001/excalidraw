@@ -2166,6 +2166,16 @@ export const abacusIcon = createIcon(
   tablerIconProps,
 );
 
+export const minimapIcon = createIcon(
+  <g strokeWidth={1.25}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3z" />
+    <path d="M9 4v13" />
+    <path d="M15 7v13" />
+  </g>,
+  tablerIconProps,
+);
+
 export const flipVertical = createIcon(
   <g strokeWidth={1.25}>
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />

@@ -545,6 +545,13 @@
     "versionNotAvailable": "Version not available",
     "width": "Width"
   },
+  "minimap": {
+    "fullTitle": "Canvas minimap",
+    "title": "Minimap",
+    "hide": "Hide minimap",
+    "collapse": "Collapse minimap",
+    "expand": "Expand minimap"
+  },
   "toast": {
     "addedToLibrary": "Added to library",
     "copyStyles": "Copied styles.",
