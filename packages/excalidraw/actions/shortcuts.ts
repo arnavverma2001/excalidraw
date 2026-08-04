@@ -32,6 +32,7 @@ export type ShortcutName =
       | "zenMode"
       | "objectsSnapMode"
       | "stats"
+      | "minimap"
       | "addToLibrary"
       | "viewMode"
       | "flipHorizontal"
@@ -98,6 +99,7 @@ const shortcutMap: Record<ShortcutName, string[]> = {
   zenMode: [getShortcutKey("Alt+Z")],
   objectsSnapMode: [getShortcutKey("Alt+S")],
   stats: [getShortcutKey("Alt+/")],
+  minimap: [],
   addToLibrary: [],
   flipHorizontal: [getShortcutKey("Shift+H")],
   flipVertical: [getShortcutKey("Shift+V")],
