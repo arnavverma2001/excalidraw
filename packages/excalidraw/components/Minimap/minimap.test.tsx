@@ -57,12 +57,12 @@ describe("minimap utils", () => {
   });
 
   it("detects elements outside the viewport", () => {
-    expect(
-      hasElementsOutsideViewport([0, 0, 50, 50], [0, 0, 100, 100]),
-    ).toBe(false);
-    expect(
-      hasElementsOutsideViewport([0, 0, 150, 50], [0, 0, 100, 100]),
-    ).toBe(true);
+    expect(hasElementsOutsideViewport([0, 0, 50, 50], [0, 0, 100, 100])).toBe(
+      false,
+    );
+    expect(hasElementsOutsideViewport([0, 0, 150, 50], [0, 0, 100, 100])).toBe(
+      true,
+    );
   });
 });
 
