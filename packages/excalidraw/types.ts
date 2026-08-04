@@ -424,6 +424,8 @@ export interface AppState {
     duration?: number;
   } | null;
   zenModeEnabled: boolean;
+  /** whether the canvas minimap overlay is visible */
+  showMinimap: boolean;
   theme: Theme;
   /** grid cell px size */
   gridSize: number;
