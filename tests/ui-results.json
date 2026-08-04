@@ -1,0 +1,128 @@
+{
+  "url": "http://localhost:3000",
+  "timestamp": "2026-08-04T16:51:00Z",
+  "pr": "https://github.com/arnavverma2001/excalidraw/pull/14",
+  "commit": "b6685cf91a3f361c9fc76d98912ead3a9d96c6ee",
+  "report": "tests/ui-report-2026-08-04-1651.md",
+  "consoleErrors": [
+    "Aw, Snap! Error code: 4 (Chromium renderer crash) on theme toggle, Help/shortcuts, Export",
+    "net::ERR_INSUFFICIENT_RESOURCES observed once during an early load attempt"
+  ],
+  "consoleWarnings": [
+    "React DevTools recommendation",
+    "Third-party cookie deprecation noise"
+  ],
+  "areas": [
+    {
+      "area": "Initial load / chrome",
+      "controls": [
+        {"name": "Initial load", "status": "PASS", "notes": "Welcome screen + toolbar load; console 0 errors on clean load", "screenshots": ["tests/01-initial-load.png", "tests/02-welcome-screen.png"]},
+        {"name": "Welcome screen dismiss", "status": "PASS", "notes": "Dismissed by selecting a tool", "screenshots": ["tests/03-canvas-ready.png"]},
+        {"name": "Canvas focus", "status": "PASS", "notes": "Canvas responsive after dismiss", "screenshots": []},
+        {"name": "Theme toggle", "status": "FAIL", "notes": "Aw, Snap! Error code: 4; reconfirmed without DevTools", "screenshots": ["tests/fail-02-theme-toggle-crash.png", "tests/fail-05-theme-retest.png", "tests/08-dark-mode-enabled.png"]},
+        {"name": "Language menu", "status": "PASS", "notes": "Dropdown lists many languages", "screenshots": ["tests/28-language-menu.png"]},
+        {"name": "Main menu", "status": "PASS", "notes": "Hamburger menu opens with expected items", "screenshots": ["tests/07-main-menu-open.png"]}
+      ]
+    },
+    {
+      "area": "Drawing tools",
+      "controls": [
+        {"name": "Selection", "status": "PASS", "notes": "Selects with handles", "screenshots": []},
+        {"name": "Rectangle", "status": "PASS", "notes": "Drew rectangle", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Diamond", "status": "PASS", "notes": "Drew diamond", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Ellipse", "status": "SUSPECT", "notes": "One crash in session 1; worked on retry", "screenshots": ["tests/fail-01-page-crash-ellipse.png", "tests/04-drawing-tools-tested.png"]},
+        {"name": "Arrow", "status": "PASS", "notes": "Drew arrow", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Line", "status": "PASS", "notes": "Drew line", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Free draw", "status": "PASS", "notes": "Pencil stroke", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Text", "status": "PASS", "notes": "Typed Test QA", "screenshots": ["tests/04-drawing-tools-tested.png"]},
+        {"name": "Image", "status": "NOT TESTABLE", "notes": "File picker limited in automation", "screenshots": []},
+        {"name": "Eraser", "status": "PASS", "notes": "Erased a line", "screenshots": ["tests/11-eraser.png"]}
+      ]
+    },
+    {
+      "area": "Editing flows",
+      "controls": [
+        {"name": "Select", "status": "PASS", "notes": "Handles visible", "screenshots": []},
+        {"name": "Move", "status": "PASS", "notes": "Drag worked", "screenshots": []},
+        {"name": "Resize", "status": "PASS", "notes": "Corner handle resize", "screenshots": ["tests/12-resize.png"]},
+        {"name": "Rotate", "status": "SUSPECT", "notes": "Handle present; thin exercise", "screenshots": ["tests/13-rotate.png"]},
+        {"name": "Duplicate", "status": "PASS", "notes": "Ctrl+D", "screenshots": ["tests/14-duplicate.png"]},
+        {"name": "Delete", "status": "PASS", "notes": "Delete key", "screenshots": ["tests/15-delete.png"]},
+        {"name": "Undo", "status": "PASS", "notes": "Ctrl+Z", "screenshots": []},
+        {"name": "Redo", "status": "PASS", "notes": "Ctrl+Shift+Z", "screenshots": ["tests/16-redo.png"]}
+      ]
+    },
+    {
+      "area": "Style controls",
+      "controls": [
+        {"name": "Stroke color", "status": "PASS", "notes": "Red stroke applied", "screenshots": ["tests/24-style-colors.png"]},
+        {"name": "Background color", "status": "PASS", "notes": "Blue fill applied", "screenshots": ["tests/24-style-colors.png"]},
+        {"name": "Fill style", "status": "PASS", "notes": "Cross-hatch etc.", "screenshots": ["tests/27-style-more.png"]},
+        {"name": "Opacity", "status": "PASS", "notes": "Visible transparency change", "screenshots": ["tests/25-opacity.png"]},
+        {"name": "Roughness", "status": "PASS", "notes": "Sloppiness control", "screenshots": ["tests/27-style-more.png"]},
+        {"name": "Stroke width", "status": "PASS", "notes": "Width options", "screenshots": ["tests/27-style-more.png"]},
+        {"name": "Stroke style", "status": "PASS", "notes": "Solid/dashed/dotted", "screenshots": ["tests/27-style-more.png"]},
+        {"name": "Font / alignment", "status": "SUSPECT", "notes": "Text works; deep matrix not fully exercised", "screenshots": []}
+      ]
+    },
+    {
+      "area": "App menus / dialogs",
+      "controls": [
+        {"name": "Export", "status": "FAIL", "notes": "Ctrl+Shift+E crashes with Error code: 4", "screenshots": ["tests/fail-07-export-crash.png"]},
+        {"name": "Save / Open", "status": "NOT TESTABLE", "notes": "Native file dialogs", "screenshots": ["tests/07-main-menu-open.png"]},
+        {"name": "Library", "status": "PASS", "notes": "Library panel opens", "screenshots": ["tests/20-library.png"]},
+        {"name": "Command palette", "status": "PASS", "notes": "Ctrl+/ opens; no crash", "screenshots": ["tests/18-command-palette.png"]},
+        {"name": "Help / shortcuts", "status": "FAIL", "notes": "Menu Help and shortcuts crash Error code: 4", "screenshots": ["tests/fail-03-keyboard-shortcut-crash.png", "tests/fail-06-shortcuts-retest.png"]},
+        {"name": "Settings / Preferences", "status": "PASS", "notes": "Preferences section accessible (theme click fails separately)", "screenshots": ["tests/07-main-menu-open.png"]},
+        {"name": "Minimap (PR #14)", "status": "PASS", "notes": "Overlay, thumbnails, viewport indicator, click-nav, close", "screenshots": ["tests/05-MINIMAP-ENABLED.png", "tests/06-minimap-navigation-works.png"]},
+        {"name": "Live collaboration entry", "status": "PASS", "notes": "Share dialog opened; session not started", "screenshots": ["tests/21-collab-entry.png"]}
+      ]
+    },
+    {
+      "area": "Canvas controls",
+      "controls": [
+        {"name": "Zoom", "status": "PASS", "notes": "100% → 110%", "screenshots": []},
+        {"name": "Hand / pan", "status": "PASS", "notes": "Hand tool drag", "screenshots": ["tests/26-hand-pan.png"]},
+        {"name": "Grid", "status": "PASS", "notes": "Ctrl+' shows grid", "screenshots": ["tests/17-grid.png"]},
+        {"name": "Scroll / minimap nav", "status": "PASS", "notes": "Viewport moves via minimap", "screenshots": ["tests/06-minimap-navigation-works.png"]}
+      ]
+    },
+    {
+      "area": "Mobile / responsive",
+      "controls": [
+        {"name": "Narrow viewport", "status": "PASS", "notes": "~390px; toolbar adapts", "screenshots": ["tests/22-mobile-narrow.png"]},
+        {"name": "Mobile menu", "status": "PASS", "notes": "Hamburger usable", "screenshots": ["tests/22b-mobile-menu.png"]},
+        {"name": "Desktop restore", "status": "PASS", "notes": "Restored larger window", "screenshots": ["tests/22c-desktop-restored.png"]}
+      ]
+    }
+  ],
+  "notTestable": [
+    {"area": "Image insertion", "reason": "OS file picker not reliably driveable in automation"},
+    {"area": "Save/Open file dialogs", "reason": "Native file dialogs"},
+    {"area": "Live collaboration session", "reason": "Entry UI only; no external secrets/session start"},
+    {"area": "Export completion", "reason": "Dialog open crashes before usable export UI"},
+    {"area": "Screen recording save", "reason": "RecordScreen SAVE timed out; still screenshots retained"}
+  ],
+  "highestRiskFailures": [
+    {
+      "name": "Theme toggle crashes tab",
+      "why": "Aw, Snap! Error code: 4 on Preferences → Theme; reproduced with DevTools closed"
+    },
+    {
+      "name": "Help / keyboard shortcuts crashes tab",
+      "why": "Aw, Snap! Error code: 4 opening Help/shortcuts"
+    },
+    {
+      "name": "Export image crashes tab",
+      "why": "Aw, Snap! Error code: 4 on Ctrl+Shift+E / Export image"
+    }
+  ],
+  "summary": {
+    "passed": 40,
+    "failed": 3,
+    "suspect": 3,
+    "notTestable": 5,
+    "minimapFeatureStatus": "PASS",
+    "overallStability": "UNSTABLE for theme/help/export overlays; otherwise core drawing/editing/minimap/mobile PASS"
+  }
+}
