@@ -4,8 +4,10 @@ import { actionShortcuts } from "../../actions";
 import { useTunnels } from "../../context/tunnels";
 import { ExitZenModeButton, UndoRedoActions, ZoomActions } from "../Actions";
 import { HelpButton } from "../HelpButton";
+import { Minimap } from "../Minimap/Minimap";
 import { Section } from "../Section";
 import Stack from "../Stack";
+import { useEditorInterface } from "../App";
 
 import type { ActionManager } from "../../actions/manager";
 import type { UIAppState } from "../../types";
@@ -22,6 +24,7 @@ const Footer = ({
   renderWelcomeScreen: boolean;
 }) => {
   const { FooterCenterTunnel, WelcomeScreenHelpHintTunnel } = useTunnels();
+  const editorInterface = useEditorInterface();
 
   return (
     <footer
@@ -35,6 +38,8 @@ const Footer = ({
         })}
       >
         <Stack.Col gap={2}>
+          {!appState.viewModeEnabled &&
+            editorInterface.formFactor !== "phone" && <Minimap />}
           <Section heading="canvasActions">
             <ZoomActions
               renderAction={actionManager.renderAction}

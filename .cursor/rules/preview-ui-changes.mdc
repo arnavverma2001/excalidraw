@@ -1,0 +1,13 @@
+---
+description: After editing frontend files, invoke the preview-ui-changes skill and show the result in the browser
+globs: "**/*.{tsx,jsx,css,scss,sass,less,html}"
+alwaysApply: false
+---
+
+# Preview UI Changes
+
+Whenever you touch any frontend files (edit, create, or delete matching the globs above), invoke the **preview-ui-changes** skill before finishing:
+
+1. Read and follow `.cursor/skills/preview-ui-changes/SKILL.md`.
+2. Do not end the turn with code-only changes — open the app in the Cursor browser and show how it looks (screenshot in the reply).
+3. One preview pass after a coherent batch of related frontend edits is enough; do not skip the preview entirely.

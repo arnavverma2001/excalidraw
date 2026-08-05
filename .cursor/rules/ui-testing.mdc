@@ -1,0 +1,14 @@
+---
+description: How to test the UI (browser + report location)
+alwaysApply: true
+---
+
+# UI Testing
+
+When testing the UI, or exercising interactive elements of the running app:
+
+- **Always use Cursor's browser** to drive the app (navigate, click, type, screenshot, read console). Do not fake or describe results without actually driving the browser.
+- **Always write a report** to a `tests/` directory at the repo root. Create the directory if it doesn't exist.
+  - One file per run, e.g. `tests/ui-report-<YYYY-MM-DD-HHmm>.md`.
+  - Include: what was tested, PASS/FAIL/SUSPECT per control, any console errors, and screenshots (save images under `tests/` and link them).
+- Lead the report with failures. A control with no observable effect, or one that throws a console error, is a FAIL with evidence — never a silent pass.

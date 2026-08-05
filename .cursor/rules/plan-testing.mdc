@@ -1,0 +1,28 @@
+---
+description: Every plan must include a Testing section
+alwaysApply: true
+---
+
+# Plan Testing
+
+Whenever you create a plan (Plan mode, implementation outline, or multi-step task breakdown), include a **Testing** section. Do not finish a plan without it.
+
+## Required content
+
+The Testing section must cover:
+
+- **What to verify** — behaviors, edge cases, or regressions the change could affect
+- **How to verify** — concrete commands or steps (e.g. `yarn test:typecheck`, Vitest, browser UI pass)
+- **Done criteria** — what counts as passing before the work is complete
+
+## Example
+
+```markdown
+## Testing
+
+- Run `yarn test:typecheck` and targeted Vitest for changed modules
+- For UI changes: start the app, exercise affected controls in Cursor's browser, write `tests/ui-report-<date>.md`
+- Confirm: minimap toggles on/off, viewport syncs on pan/zoom, no console errors
+```
+
+If the change is non-code (docs-only, config comment), say so explicitly and state what review or smoke check still applies.

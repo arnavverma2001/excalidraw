@@ -1,0 +1,58 @@
+{
+  "results": [
+    {
+      "area": "Minimap",
+      "control": "Appears bottom-left 160x120 above zoom",
+      "status": "PASS",
+      "evidence": "Minimap 160x120px, above zoom controls (minimap bottom=739, zoom top=748)"
+    },
+    {
+      "area": "Minimap",
+      "control": "Shows rectangle thumbnail after draw",
+      "status": "PASS",
+      "evidence": "nonBg pixels before=0 after=1182"
+    },
+    {
+      "area": "Minimap",
+      "control": "Viewport rect moves on pan/zoom",
+      "status": "PASS",
+      "evidence": "pan: before={\"left\":\"-422.642px\",\"top\":\"-226.792px\",\"width\":\"966.038px\",\"height\":\"603.774px\"} afterPan={\"left\":\"-271.698px\",\"top\":\"-113.585px\",\"width\":\"966.038px\",\"height\":\"603.774px\"}; zoom rect={\"left\":\"-271.698px\",\"top\":\"-113.585px\",\"width\":\"966.038px\",\"height\":\"603.774px\"}"
+    },
+    {
+      "area": "Minimap",
+      "control": "Click pans main canvas",
+      "status": "PASS",
+      "evidence": "scroll before={\"scrollX\":-200,\"scrollY\":-150} after={\"scrollX\":-100.20000000000005,\"scrollY\":-35.64999999999998}"
+    },
+    {
+      "area": "App",
+      "control": "No console errors",
+      "status": "PASS",
+      "evidence": "No console errors captured"
+    }
+  ],
+  "consoleMessages": [],
+  "screenshots": [
+    {
+      "name": "01-initial-load",
+      "path": "minimap-01-initial-load.png"
+    },
+    {
+      "name": "02-after-rectangle",
+      "path": "minimap-02-after-rectangle.png"
+    },
+    {
+      "name": "03-after-pan",
+      "path": "minimap-03-after-pan.png"
+    },
+    {
+      "name": "04-after-zoom",
+      "path": "minimap-04-after-zoom.png"
+    },
+    {
+      "name": "05-after-minimap-click",
+      "path": "minimap-05-after-minimap-click.png"
+    }
+  ],
+  "timestamp": "2026-08-03-0940"
+}

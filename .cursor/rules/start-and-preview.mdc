@@ -1,0 +1,18 @@
+---
+description: How to start the Excalidraw dev server and preview it in the Cursor browser
+alwaysApply: true
+---
+
+# Start & Preview
+
+Start the app dev server from the repo root:
+
+```bash
+yarn start
+```
+
+This runs the `excalidraw-app` Vite dev server on `http://localhost:3000` (override with `VITE_APP_PORT`).
+
+- Run it as a long-running/background process; don't block waiting on it.
+- Wait until Vite prints the local URL before opening the browser.
+- Then open `http://localhost:3000` in the Cursor browser to preview.
