@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeMCPExecution": [
+      {
+        "command": ".cursor/hooks/block-atlassian.sh",
+        "failClosed": true
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": ".cursor/hooks/block-atlassian.sh",
+        "matcher": "CallMcpTool|FetchMcpResource",
+        "failClosed": true
+      }
+    ]
+  }
+}
