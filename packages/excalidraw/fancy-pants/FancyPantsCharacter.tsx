@@ -1,3 +1,5 @@
+import { BODY_SQUASH } from "./motion";
+
 import type { Chain, FramePose } from "./motion";
 
 const INK = "#141414";
@@ -23,7 +25,7 @@ const Limb = ({ chain, toe }: { chain: Chain; toe: boolean }) => (
  * baked into the coordinates. Hair rotation is world-space.
  */
 export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
-  const sy = 1 - Math.min(1.2, Math.max(-0.35, pose.compress)) * 0.16;
+  const sy = 1 - Math.min(1.2, Math.max(-0.35, pose.compress)) * BODY_SQUASH;
   const legs = pose.legs
     .map((chain, index) => ({ chain, index }))
     .sort((a, b) => a.chain.cx - b.chain.cx);
@@ -55,7 +57,7 @@ export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
             <Limb key={`leg-${index}`} chain={chain} toe />
           ))}
           <circle cx={pose.headX} cy={pose.headY} r="4.35" fill={INK} />
-          <circle cx={pose.eyeX} cy={pose.eyeY} r="0.7" fill="#f4f1ea" />
+          <circle cx={pose.eyeX} cy={pose.eyeY} r="0.9" fill="#f4f1ea" />
         </g>
       </g>
       <g transform={`translate(${pose.hairX} ${pose.hairY})`}>

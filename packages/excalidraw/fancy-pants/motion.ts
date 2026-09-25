@@ -4,32 +4,35 @@ import type { Body } from "./physics";
 export const PHYSICS_DT = 1 / 120;
 
 /** World distance for one full stride (both feet). */
-export const STRIDE = 70;
+export const STRIDE = 56;
+
+/** How hard a landing squashes the figure toward the feet. */
+export const BODY_SQUASH = 0.42;
 
 const CLIMB_STRIDE = 26;
 const HIP_Y = 28.4;
+const RUN_HIP_Y = 27.2;
 const SHOULDER_Y = 15.4;
 const HEAD_Y = 8.3;
 const GROUND_Y = 42.3;
 const THIGH = 11.6;
 const SHIN = 11.0;
+const RUN_THIGH = 13.6;
+const RUN_SHIN = 12.8;
 const UPPER_ARM = 6.6;
 const FOREARM = 5.8;
-const FOOT = 3.5;
+const FOOT = 4.2;
 const CX = 13;
-const TURN_TIME = 0.18;
-const STANCE_A = 0.06;
-const STANCE_B = 0.44;
-/** Ankle, in facing-forward units, at contact and at toe-off. */
-const CONTACT_X = 11;
-const TOEOFF_X = CONTACT_X - (STANCE_B - STANCE_A) * STRIDE;
-
+const TURN_TIME = 0.34;
+const STANCE_FRONT = 13;
+const STANCE_BACK = -15;
+const SWING_LIFT = 13;
 const SPIKES = [
-  { rest: -36, len: 7.2, w: 2.3 },
-  { rest: -14, len: 9.4, w: 2.5 },
-  { rest: 6, len: 10.2, w: 2.3 },
-  { rest: 24, len: 8.2, w: 2.1 },
-  { rest: 42, len: 6.4, w: 1.8 },
+  { rest: -7, len: 14, w: 2.4, k: 32, c: 10 },
+  { rest: -3, len: 18, w: 2.6, k: 26, c: 8.5 },
+  { rest: 0, len: 21, w: 2.5, k: 20, c: 7.2 },
+  { rest: 3, len: 17, w: 2.3, k: 16, c: 6.4 },
+  { rest: 7, len: 13, w: 2.1, k: 12, c: 5.6 },
 ];
 
 const MODES = ["idle", "run", "jump", "fall", "climb"] as const;
@@ -37,31 +40,34 @@ type Mode = typeof MODES[number];
 
 type Limb = { hip: number; knee: number; ankle: number };
 
-type Angles = {
-  lean: number;
-  bob: number;
-  hipX: number;
-  shoulderX: number;
-  headX: number;
-  headY: number;
-  legs: [Limb, Limb];
-  arms: [Limb, Limb];
-};
-
 type Plant = {
   held: boolean;
   worldX: number;
-  blend: number;
+};
+
+type Stick = {
+  lean: number;
+  hipX: number;
+  hipY: number;
+  shoulderX: number;
+  shoulderY: number;
+  headX: number;
+  headY: number;
+  eyeX: number;
+  eyeY: number;
+  legs: [Chain, Chain];
+  arms: [Chain, Chain];
 };
 
 export type Look = {
   phase: number;
   climbPhase: number;
-  /** Eased facing, -1..1. This is not applied as an SVG mirror. */
+  /** Eased facing, -1..1. Limb geometry does not use this as a scale. */
   face: number;
   turnFrom: number;
   turnTo: number;
   turnU: number;
+  skidFace: 1 | -1;
   weights: Record<Mode, number>;
   compress: number;
   hair: number;
@@ -77,8 +83,15 @@ export type Look = {
   vxReady: boolean;
   airTime: number;
   landAge: number;
-  recover: number;
-  prevLegs: [Chain, Chain] | null;
+  takeoffAge: number;
+  lastGroundY: number;
+  wasClimbing: boolean;
+  mountU: number;
+  mountFrom: Stick | null;
+  dismountU: number;
+  dismountFrom: Stick | null;
+  brakeFrom: Stick | null;
+  prevStick: Stick | null;
 };
 
 export type Chain = {
@@ -96,6 +109,8 @@ export type FramePose = {
   bob: number;
   lean: number;
   compress: number;
+  /** Scene pixels to hold the sprite on the ground during takeoff. */
+  drop: number;
   hipX: number;
   hipY: number;
   shoulderX: number;
@@ -140,10 +155,17 @@ const endPoint = (x: number, y: number, rad: number, len: number) => ({
   y: y + Math.cos(rad) * len,
 });
 
-const emptyPlant = (): Plant => ({
-  held: false,
-  worldX: 0,
-  blend: 0,
+const emptyPlant = (): Plant => ({ held: false, worldX: 0 });
+
+const blankChain = (): Chain => ({
+  ax: CX,
+  ay: RUN_HIP_Y,
+  bx: CX,
+  by: RUN_HIP_Y,
+  cx: CX,
+  cy: GROUND_Y,
+  dx: CX,
+  dy: GROUND_Y,
 });
 
 export function createLook(x: number, y: number, facing: 1 | -1 = 1): Look {
@@ -154,6 +176,7 @@ export function createLook(x: number, y: number, facing: 1 | -1 = 1): Look {
     turnFrom: facing,
     turnTo: facing,
     turnU: 1,
+    skidFace: facing,
     weights: { idle: 1, run: 0, jump: 0, fall: 0, climb: 0 },
     compress: 0,
     hair: 0,
@@ -169,8 +192,15 @@ export function createLook(x: number, y: number, facing: 1 | -1 = 1): Look {
     vxReady: false,
     airTime: 0,
     landAge: -1,
-    recover: 0,
-    prevLegs: null,
+    takeoffAge: -1,
+    lastGroundY: y,
+    wasClimbing: false,
+    mountU: 1,
+    mountFrom: null,
+    dismountU: 1,
+    dismountFrom: null,
+    brakeFrom: null,
+    prevStick: null,
   };
 }
 
@@ -188,6 +218,8 @@ export function interpolatePosition(
 
 const CONTACT = { hip: 0.48, knee: 0.22, ankle: 0.55 };
 const TOEOFF = { hip: -0.55, knee: 0.16, ankle: -0.35 };
+const STANCE_A = 0.06;
+const STANCE_B = 0.44;
 
 /** One leg across a full cycle (both steps). u and u+0.5 are the two feet. */
 export function legCycle(u: number): Limb & { stance: boolean } {
@@ -212,13 +244,482 @@ export function legCycle(u: number): Limb & { stance: boolean } {
   };
 }
 
-function armCycle(u: number): Limb {
-  const leg = legCycle(u);
+function solveJoint(
+  ax: number,
+  ay: number,
+  tx: number,
+  ty: number,
+  upper: number,
+  lower: number,
+) {
+  let dx = tx - ax;
+  let dy = ty - ay;
+  let dist = Math.hypot(dx, dy) || 0.001;
+  const max = upper + lower - 0.05;
+  const min = Math.abs(upper - lower) + 0.05;
+  if (dist > max) {
+    dx *= max / dist;
+    dy *= max / dist;
+    dist = max;
+  } else if (dist < min) {
+    dx *= min / dist;
+    dy *= min / dist;
+    dist = min;
+  }
+  const aim = Math.atan2(dx, dy);
+  const hipOff = Math.acos(
+    clamp(
+      (upper * upper + dist * dist - lower * lower) / (2 * upper * dist),
+      -1,
+      1,
+    ),
+  );
+  const options = [1, -1].map((sign) => {
+    const thigh = aim + sign * hipOff;
+    return {
+      bx: ax + Math.sin(thigh) * upper,
+      by: ay + Math.cos(thigh) * upper,
+    };
+  });
+  options.sort((a, b) => a.by - b.by);
   return {
-    hip: -leg.hip * 0.95,
-    knee: 0.18 + leg.knee * 0.16,
-    ankle: 0,
+    bx: options[0].bx,
+    by: options[0].by,
+    cx: ax + dx,
+    cy: ay + dy,
   };
+}
+
+function makeLeg(
+  hipX: number,
+  hipY: number,
+  ankleX: number,
+  ankleY: number,
+  toeDir: number,
+  toeLift: number,
+  thigh = RUN_THIGH,
+  shin = RUN_SHIN,
+): Chain {
+  const ik = solveJoint(hipX, hipY, ankleX, ankleY, thigh, shin);
+  return {
+    ax: hipX,
+    ay: hipY,
+    bx: ik.bx,
+    by: ik.by,
+    cx: ik.cx,
+    cy: ik.cy,
+    dx: ik.cx + toeDir * FOOT,
+    dy: ik.cy - toeLift,
+  };
+}
+
+function makeArm(sx: number, sy: number, hx: number, hy: number): Chain {
+  const ik = solveJoint(sx, sy, hx, hy, UPPER_ARM, FOREARM);
+  return {
+    ax: sx,
+    ay: sy,
+    bx: ik.bx,
+    by: ik.by,
+    cx: ik.cx,
+    cy: ik.cy,
+    dx: ik.cx,
+    dy: ik.cy,
+  };
+}
+
+function rotateDeg(x: number, y: number, ox: number, oy: number, deg: number) {
+  const rad = (deg * Math.PI) / 180;
+  const dx = x - ox;
+  const dy = y - oy;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return { x: ox + dx * c - dy * s, y: oy + dx * s + dy * c };
+}
+
+function rotateChain(chain: Chain, ox: number, oy: number, deg: number): Chain {
+  const turn = (x: number, y: number) => rotateDeg(x, y, ox, oy, deg);
+  const a = turn(chain.ax, chain.ay);
+  const b = turn(chain.bx, chain.by);
+  const c = turn(chain.cx, chain.cy);
+  const d = turn(chain.dx, chain.dy);
+  return {
+    ax: a.x,
+    ay: a.y,
+    bx: b.x,
+    by: b.y,
+    cx: c.x,
+    cy: c.y,
+    dx: d.x,
+    dy: d.y,
+  };
+}
+
+function cloneChain(chain: Chain): Chain {
+  return { ...chain };
+}
+
+function cloneStick(stick: Stick): Stick {
+  return {
+    ...stick,
+    legs: [cloneChain(stick.legs[0]), cloneChain(stick.legs[1])],
+    arms: [cloneChain(stick.arms[0]), cloneChain(stick.arms[1])],
+  };
+}
+
+function mixChain(a: Chain, b: Chain, t: number): Chain {
+  const m = (from: number, to: number) => lerp(from, to, t);
+  return {
+    ax: m(a.ax, b.ax),
+    ay: m(a.ay, b.ay),
+    bx: m(a.bx, b.bx),
+    by: m(a.by, b.by),
+    cx: m(a.cx, b.cx),
+    cy: m(a.cy, b.cy),
+    dx: m(a.dx, b.dx),
+    dy: m(a.dy, b.dy),
+  };
+}
+
+function mixStick(a: Stick, b: Stick, t: number): Stick {
+  const m = (from: number, to: number) => lerp(from, to, t);
+  return {
+    lean: m(a.lean, b.lean),
+    hipX: m(a.hipX, b.hipX),
+    hipY: m(a.hipY, b.hipY),
+    shoulderX: m(a.shoulderX, b.shoulderX),
+    shoulderY: m(a.shoulderY, b.shoulderY),
+    headX: m(a.headX, b.headX),
+    headY: m(a.headY, b.headY),
+    eyeX: m(a.eyeX, b.eyeX),
+    eyeY: m(a.eyeY, b.eyeY),
+    legs: [
+      mixChain(a.legs[0], b.legs[0], t),
+      mixChain(a.legs[1], b.legs[1], t),
+    ],
+    arms: [
+      mixChain(a.arms[0], b.arms[0], t),
+      mixChain(a.arms[1], b.arms[1], t),
+    ],
+  };
+}
+
+function moveToward(
+  px: number,
+  py: number,
+  tx: number,
+  ty: number,
+  max: number,
+) {
+  const dx = tx - px;
+  const dy = ty - py;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= max || dist < 1e-6) {
+    return { x: tx, y: ty };
+  }
+  const s = max / dist;
+  return { x: px + dx * s, y: py + dy * s };
+}
+
+function capChain(prev: Chain, next: Chain, max: number): Chain {
+  const a = moveToward(prev.ax, prev.ay, next.ax, next.ay, max);
+  const b = moveToward(prev.bx, prev.by, next.bx, next.by, max);
+  const c = moveToward(prev.cx, prev.cy, next.cx, next.cy, max);
+  const d = moveToward(prev.dx, prev.dy, next.dx, next.dy, max);
+  return {
+    ax: a.x,
+    ay: a.y,
+    bx: b.x,
+    by: b.y,
+    cx: c.x,
+    cy: c.y,
+    dx: d.x,
+    dy: d.y,
+  };
+}
+
+function capStick(prev: Stick, next: Stick, max: number): Stick {
+  const shoulder = moveToward(
+    prev.shoulderX,
+    prev.shoulderY,
+    next.shoulderX,
+    next.shoulderY,
+    max,
+  );
+  const head = moveToward(prev.headX, prev.headY, next.headX, next.headY, max);
+  const eye = moveToward(prev.eyeX, prev.eyeY, next.eyeX, next.eyeY, max);
+  const hip = moveToward(prev.hipX, prev.hipY, next.hipX, next.hipY, max);
+  return {
+    lean: next.lean,
+    hipX: hip.x,
+    hipY: hip.y,
+    shoulderX: shoulder.x,
+    shoulderY: shoulder.y,
+    headX: head.x,
+    headY: head.y,
+    eyeX: eye.x,
+    eyeY: eye.y,
+    legs: [
+      capChain(prev.legs[0], next.legs[0], max),
+      capChain(prev.legs[1], next.legs[1], max),
+    ],
+    arms: [
+      capChain(prev.arms[0], next.arms[0], max),
+      capChain(prev.arms[1], next.arms[1], max),
+    ],
+  };
+}
+
+function clearPlants(look: Look) {
+  look.plants[0].held = false;
+  look.plants[1].held = false;
+}
+
+/** Feet positions for one gait cycle. Exactly one foot is in stance. */
+function footLocal(u: number, face: number, hipX: number) {
+  const t = wrap(u);
+  if (t < 0.5) {
+    const along = t / 0.5;
+    return {
+      x: hipX + lerp(STANCE_FRONT, STANCE_BACK, along) * face,
+      y: GROUND_Y,
+      lift: 0,
+      stance: true,
+    };
+  }
+  const s = (t - 0.5) / 0.5;
+  const along = Math.sin((s * Math.PI) / 2);
+  return {
+    x: hipX + lerp(STANCE_BACK, STANCE_FRONT, along) * face,
+    y: GROUND_Y - Math.sin(s * Math.PI) * SWING_LIFT,
+    lift: Math.sin(s * Math.PI) * 2.6,
+    stance: false,
+  };
+}
+
+function applyLean(
+  stick: Stick,
+  lean: number,
+  eyeOffset: number,
+  headDrop: number,
+) {
+  const hipX = stick.hipX;
+  const hipY = stick.hipY;
+  const shoulder = rotateDeg(hipX, SHOULDER_Y, hipX, hipY, lean);
+  const head = rotateDeg(hipX, HEAD_Y + headDrop, hipX, hipY, lean);
+  const eye = rotateDeg(
+    hipX + eyeOffset,
+    HEAD_Y + headDrop - 0.2,
+    hipX,
+    hipY,
+    lean,
+  );
+  stick.lean = lean;
+  stick.shoulderX = shoulder.x;
+  stick.shoulderY = shoulder.y;
+  stick.headX = head.x;
+  stick.headY = head.y;
+  stick.eyeX = eye.x;
+  stick.eyeY = eye.y;
+  stick.arms = [
+    rotateChain(stick.arms[0], hipX, hipY, lean),
+    rotateChain(stick.arms[1], hipX, hipY, lean),
+  ];
+}
+
+function armPair(hipX: number, phase: number, face: number): [Chain, Chain] {
+  return [0, 1].map((index) => {
+    const swing = Math.cos(wrap(phase + index * 0.5) * Math.PI * 2);
+    return makeArm(
+      hipX,
+      SHOULDER_Y,
+      hipX + -7.4 * swing * face,
+      SHOULDER_Y + 6.6,
+    );
+  }) as [Chain, Chain];
+}
+
+function baseStick(): Stick {
+  return {
+    lean: 0,
+    hipX: CX,
+    hipY: RUN_HIP_Y,
+    shoulderX: CX,
+    shoulderY: SHOULDER_Y,
+    headX: CX,
+    headY: HEAD_Y,
+    eyeX: CX,
+    eyeY: HEAD_Y - 0.2,
+    legs: [blankChain(), blankChain()],
+    arms: [blankChain(), blankChain()],
+  };
+}
+
+function poseFeet(
+  offsets: [number, number],
+  ys: [number, number],
+  face: number,
+  lifts: [number, number] = [0, 0],
+): [Chain, Chain] {
+  return [0, 1].map((index) =>
+    makeLeg(
+      CX,
+      RUN_HIP_Y,
+      CX + offsets[index] * face,
+      ys[index],
+      face || (index === 0 ? 1 : -1),
+      lifts[index],
+    ),
+  ) as [Chain, Chain];
+}
+
+function idleStick(time: number, face: number): Stick {
+  const sway = Math.sin(time * 2.2) * 0.6;
+  const stick = baseStick();
+  const dir = face || 1;
+  stick.legs = poseFeet([2.4 + sway, -1.8 - sway], [GROUND_Y, GROUND_Y], dir);
+  stick.arms = [
+    makeArm(CX, SHOULDER_Y, CX - 1.4 * dir, SHOULDER_Y + 8.2),
+    makeArm(CX, SHOULDER_Y, CX + 1.6 * dir, SHOULDER_Y + 7.6),
+  ];
+  applyLean(stick, 2 * dir, 1.35 * dir, Math.sin(time * 2.4) * 0.25);
+  return stick;
+}
+
+function kinematicRun(phase: number, face: number): Stick {
+  const stick = baseStick();
+  stick.legs = [0, 1].map((index) => {
+    const foot = footLocal(phase + index * 0.5, face, CX);
+    return makeLeg(CX, RUN_HIP_Y, foot.x, foot.y, face, foot.lift);
+  }) as [Chain, Chain];
+  stick.arms = armPair(CX, phase, face);
+  applyLean(stick, 16 * face, 1.7 * face, 0);
+  return stick;
+}
+
+/**
+ * Stance ankle stays at a fixed world X. The swing foot is the only one
+ * that leaves the ground. Phase 0..0.5 and 0.5..1 never overlap.
+ */
+function lockedRun(
+  phase: number,
+  face: number,
+  sample: LookSample,
+  look: Look,
+): Stick {
+  const stick = baseStick();
+  stick.arms = armPair(CX, phase, face);
+  stick.legs = [0, 1].map((index) => {
+    const foot = footLocal(phase + index * 0.5, face, CX);
+    const plant = look.plants[index];
+    if (foot.stance) {
+      if (!plant.held) {
+        const prevX = look.prevStick?.legs[index].cx;
+        plant.worldX =
+          prevX === undefined ? sample.x + foot.x : look.visualX + prevX;
+        plant.held = true;
+      }
+      const ankleX = plant.worldX - sample.x;
+      return makeLeg(CX, RUN_HIP_Y, ankleX, GROUND_Y, face, 0);
+    }
+    plant.held = false;
+    return makeLeg(CX, RUN_HIP_Y, foot.x, foot.y, face, foot.lift);
+  }) as [Chain, Chain];
+  applyLean(stick, 16 * face, 1.7 * face, 0);
+  return stick;
+}
+
+function brakeStick(oldFace: number): Stick {
+  const stick = baseStick();
+  stick.legs = poseFeet([8, -6], [GROUND_Y, GROUND_Y], oldFace);
+  stick.arms = [
+    makeArm(CX, SHOULDER_Y, CX - 9 * oldFace, SHOULDER_Y + 1.2),
+    makeArm(CX, SHOULDER_Y, CX + 7 * oldFace, SHOULDER_Y + 8.4),
+  ];
+  applyLean(stick, -38 * oldFace, 1.7 * oldFace, 0.4);
+  return stick;
+}
+
+function narrowStick(): Stick {
+  const stick = baseStick();
+  stick.legs = [
+    makeLeg(CX, RUN_HIP_Y, CX + 1.3, GROUND_Y, 1, 0),
+    makeLeg(CX, RUN_HIP_Y, CX - 1.3, GROUND_Y, -1, 0),
+  ];
+  stick.arms = [
+    makeArm(CX, SHOULDER_Y, CX + 1.4, SHOULDER_Y + 8),
+    makeArm(CX, SHOULDER_Y, CX - 1.4, SHOULDER_Y + 8),
+  ];
+  applyLean(stick, 0, 0, 0.6);
+  return stick;
+}
+
+function squashStick(face: number): Stick {
+  const stick = baseStick();
+  stick.legs = poseFeet([3.2, -2.4], [GROUND_Y, GROUND_Y], face || 1);
+  stick.arms = [
+    makeArm(CX, SHOULDER_Y, CX - 4 * face, SHOULDER_Y + 4),
+    makeArm(CX, SHOULDER_Y, CX + 2 * face, SHOULDER_Y + 5),
+  ];
+  applyLean(stick, 8 * face, 1.2 * face, 3.2);
+  return stick;
+}
+
+function flightStick(kind: string, face: number): Stick {
+  const dir = face || 1;
+  const stick = baseStick();
+  if (kind === "crouch") {
+    stick.legs = poseFeet([1.2, -0.8], [RUN_HIP_Y + 4.6, RUN_HIP_Y + 5.2], dir);
+    stick.arms = [
+      makeArm(CX, SHOULDER_Y, CX - 3 * dir, SHOULDER_Y + 3),
+      makeArm(CX, SHOULDER_Y, CX + 1 * dir, SHOULDER_Y + 4),
+    ];
+    applyLean(stick, 12 * dir, 1.4 * dir, 2.4);
+    return stick;
+  }
+  if (kind === "extend") {
+    stick.legs = poseFeet([-12, 5], [GROUND_Y - 0.4, GROUND_Y - 1.2], dir);
+    stick.arms = [
+      makeArm(CX, SHOULDER_Y, CX + 2 * dir, SHOULDER_Y - 6),
+      makeArm(CX, SHOULDER_Y, CX + 5 * dir, SHOULDER_Y - 4),
+    ];
+    applyLean(stick, -10 * dir, 1.6 * dir, -0.6);
+    return stick;
+  }
+  if (kind === "apex") {
+    stick.legs = poseFeet([2.4, -1.2], [RUN_HIP_Y + 6.2, RUN_HIP_Y + 6.8], dir);
+    stick.arms = [
+      makeArm(CX, SHOULDER_Y, CX - 1 * dir, SHOULDER_Y - 5),
+      makeArm(CX, SHOULDER_Y, CX + 3 * dir, SHOULDER_Y - 3),
+    ];
+    applyLean(stick, 2 * dir, 1.3 * dir, 0.2);
+    return stick;
+  }
+  if (kind === "fall") {
+    stick.legs = poseFeet(
+      [7, -6],
+      [GROUND_Y - 7, GROUND_Y - 6],
+      dir,
+      [1.2, 1.4],
+    );
+    stick.arms = [
+      makeArm(CX, SHOULDER_Y, CX - 6 * dir, SHOULDER_Y - 2),
+      makeArm(CX, SHOULDER_Y, CX + 2 * dir, SHOULDER_Y - 1),
+    ];
+    applyLean(stick, 14 * dir, 1.5 * dir, 0.4);
+    return stick;
+  }
+  stick.legs = poseFeet(
+    [9, 2],
+    [GROUND_Y - 0.4, GROUND_Y - 1.1],
+    dir,
+    [0.4, 0.8],
+  );
+  stick.arms = [
+    makeArm(CX, SHOULDER_Y, CX + 1 * dir, SHOULDER_Y + 2),
+    makeArm(CX, SHOULDER_Y, CX - 3 * dir, SHOULDER_Y + 3),
+  ];
+  applyLean(stick, 6 * dir, 1.4 * dir, 0.8);
+  return stick;
 }
 
 function climbLeg(u: number): Limb {
@@ -237,196 +738,6 @@ function climbArm(u: number): Limb {
     knee: 0.28 + (0.5 + 0.5 * Math.cos(a)) * 0.35,
     ankle: 0,
   };
-}
-
-function idleAngles(time: number): Angles {
-  const sway = Math.sin(time * 2.2) * 0.05;
-  return {
-    lean: 1.5 + Math.sin(time * 2.2) * 1.2,
-    bob: Math.sin(time * 2.4) * 0.4,
-    hipX: CX,
-    shoulderX: CX,
-    headX: CX,
-    headY: HEAD_Y + Math.sin(time * 2.4) * 0.2,
-    legs: [limbTo(2.2 + sway, GROUND_Y), limbTo(-1.6 - sway, GROUND_Y)],
-    arms: [
-      { hip: -0.16 + sway, knee: 0.16, ankle: 0 },
-      { hip: 0.18 - sway, knee: 0.14, ankle: 0 },
-    ],
-  };
-}
-
-function runAngles(phase: number, speed: number): Angles {
-  const rock = Math.sin(phase * Math.PI * 4) * speed;
-  return {
-    lean: 8 + speed * 6 + Math.sin(phase * Math.PI * 2) * 1.6 * speed,
-    bob: Math.cos(phase * Math.PI * 4) * 1.15 * speed,
-    hipX: CX + rock * 0.8,
-    shoulderX: CX - rock * 0.7,
-    headX: CX - rock * 0.25,
-    headY: HEAD_Y + Math.cos((phase - 0.05) * Math.PI * 4) * 0.55 * speed,
-    legs: [legCycle(phase), legCycle(phase + 0.5)],
-    arms: [armCycle(phase), armCycle(phase + 0.5)],
-  };
-}
-
-function poseOf(
-  lean: number,
-  bob: number,
-  legs: [Limb, Limb],
-  arms: [Limb, Limb],
-  headY = HEAD_Y,
-): Angles {
-  return {
-    lean,
-    bob,
-    hipX: CX,
-    shoulderX: CX,
-    headX: CX,
-    headY,
-    legs,
-    arms,
-  };
-}
-
-/** Continuous flight: crouch, extend, apex, fall, then a downward reach. */
-function flightAngles(airTime: number, vy: number): Angles {
-  const crouch = poseOf(
-    14,
-    2.4,
-    [limbTo(1.1, HIP_Y + 5.1), limbTo(-0.8, HIP_Y + 5.4)],
-    [
-      { hip: -0.65, knee: 0.45, ankle: 0 },
-      { hip: -0.3, knee: 0.4, ankle: 0 },
-    ],
-    HEAD_Y + 1.1,
-  );
-  const extend = poseOf(
-    -8,
-    -1.6,
-    [limbTo(-11, GROUND_Y - 0.8), limbTo(7, GROUND_Y - 1.4)],
-    [
-      { hip: 2.2, knee: 0.16, ankle: 0 },
-      { hip: 1.85, knee: 0.22, ankle: 0 },
-    ],
-    HEAD_Y - 0.4,
-  );
-  const apex = poseOf(
-    1,
-    -0.3,
-    [limbTo(3.2, HIP_Y + 6.2), limbTo(-1.4, HIP_Y + 6.6)],
-    [
-      { hip: 1.65, knee: 0.4, ankle: 0 },
-      { hip: 2.05, knee: 0.28, ankle: 0 },
-    ],
-  );
-  const fall = poseOf(
-    11,
-    0.3,
-    [limbTo(6, GROUND_Y - 6), limbTo(-7, GROUND_Y - 5)],
-    [
-      { hip: 2.15, knee: 0.22, ankle: 0 },
-      { hip: 1.55, knee: 0.48, ankle: 0 },
-    ],
-  );
-  const reach = poseOf(
-    5,
-    0.8,
-    [limbTo(9, GROUND_Y - 0.6), limbTo(2.2, GROUND_Y - 1.2)],
-    [
-      { hip: 0.85, knee: 0.32, ankle: 0 },
-      { hip: 0.35, knee: 0.42, ankle: 0 },
-    ],
-  );
-
-  const tuck = clamp(1 - Math.max(0, airTime - 0.02) / 0.1, 0, 1);
-  const rising = clamp(-vy / 220, 0, 1);
-  const extendW =
-    smooth(clamp((airTime - 0.11) / 0.1, 0, 1)) * rising * (1 - tuck);
-  const apexW =
-    clamp(1 - Math.abs(vy) / 150, 0, 1) *
-    smooth(clamp((airTime - 0.16) / 0.1, 0, 1));
-  const fallW = smooth(clamp((vy + 40) / 320, 0, 1));
-  const reachW = smooth(clamp((vy - 180) / 320, 0, 1));
-  const raw = [
-    tuck * (1 - extendW),
-    extendW * (1 - apexW) * (1 - fallW),
-    apexW * (1 - reachW),
-    fallW * (1 - reachW) * (1 - apexW),
-    reachW,
-  ];
-  let sum = raw.reduce((total, value) => total + value, 0);
-  if (sum < 1e-4) {
-    raw[2] = 1;
-    sum = 1;
-  }
-  return blendList(
-    [crouch, extend, apex, fall, reach],
-    raw.map((value) => value / sum),
-  );
-}
-
-function climbAngles(phase: number, up: boolean): Angles {
-  return {
-    lean: up ? 16 : 8,
-    bob: Math.sin(phase * Math.PI * 4) * 0.35,
-    hipX: CX + 3.2,
-    shoulderX: CX + 3.6,
-    headX: CX + 2.4,
-    headY: HEAD_Y,
-    legs: [climbLeg(phase), climbLeg(phase + 0.5)],
-    arms: [climbArm(phase), climbArm(phase + 0.5)],
-  };
-}
-
-function blendList(sources: Angles[], weights: number[]): Angles {
-  const acc: Angles = {
-    lean: 0,
-    bob: 0,
-    hipX: 0,
-    shoulderX: 0,
-    headX: 0,
-    headY: 0,
-    legs: [
-      { hip: 0, knee: 0, ankle: 0 },
-      { hip: 0, knee: 0, ankle: 0 },
-    ],
-    arms: [
-      { hip: 0, knee: 0, ankle: 0 },
-      { hip: 0, knee: 0, ankle: 0 },
-    ],
-  };
-  sources.forEach((src, index) => {
-    const w = weights[index];
-    if (w < 1e-4) {
-      return;
-    }
-    acc.lean += src.lean * w;
-    acc.bob += src.bob * w;
-    acc.hipX += src.hipX * w;
-    acc.shoulderX += src.shoulderX * w;
-    acc.headX += src.headX * w;
-    acc.headY += src.headY * w;
-    for (let i = 0; i < 2; i++) {
-      acc.legs[i].hip += src.legs[i].hip * w;
-      acc.legs[i].knee += src.legs[i].knee * w;
-      acc.legs[i].ankle += src.legs[i].ankle * w;
-      acc.arms[i].hip += src.arms[i].hip * w;
-      acc.arms[i].knee += src.arms[i].knee * w;
-      acc.arms[i].ankle += src.arms[i].ankle * w;
-    }
-  });
-  return acc;
-}
-
-function blendAngles(
-  parts: Record<Mode, Angles>,
-  weights: Record<Mode, number>,
-): Angles {
-  return blendList(
-    MODES.map((mode) => parts[mode]),
-    MODES.map((mode) => weights[mode]),
-  );
 }
 
 function buildChain(
@@ -453,228 +764,83 @@ function buildChain(
   };
 }
 
-function solveLeg(hipX: number, targetX: number, targetY: number) {
-  let dx = targetX - hipX;
-  let dy = targetY - HIP_Y;
-  let dist = Math.hypot(dx, dy) || 0.001;
-  const max = THIGH + SHIN - 0.08;
-  const min = Math.abs(THIGH - SHIN) + 0.08;
-  if (dist > max) {
-    dx *= max / dist;
-    dy *= max / dist;
-    dist = max;
-  } else if (dist < min) {
-    dx *= min / dist;
-    dy *= min / dist;
-    dist = min;
-  }
-  const aim = Math.atan2(dx, dy);
-  const hipOff = Math.acos(
-    clamp(
-      (THIGH * THIGH + dist * dist - SHIN * SHIN) / (2 * THIGH * dist),
-      -1,
-      1,
-    ),
-  );
-  const bend = Math.acos(
-    clamp(
-      (THIGH * THIGH + SHIN * SHIN - dist * dist) / (2 * THIGH * SHIN),
-      -1,
-      1,
-    ),
-  );
-  // Two bends reach the same ankle. Keep the knee above the other one.
-  const options = [1, -1].map((sign) => {
-    const thigh = aim + sign * hipOff;
-    const knee = sign * (Math.PI - bend);
-    return {
-      hip: thigh,
-      knee,
-      shin: thigh - knee,
-      kneeY: HIP_Y + Math.cos(thigh) * THIGH,
-    };
-  });
-  options.sort((a, b) => a.kneeY - b.kneeY);
-  return options[0];
-}
-
-function limbTo(offsetX: number, targetY: number): Limb {
-  const ik = solveLeg(CX, CX + offsetX, targetY);
-  const toeAng = Math.atan2(Math.sign(offsetX || 1), 0.45);
-  return { hip: ik.hip, knee: ik.knee, ankle: toeAng - ik.shin };
-}
-
-function rotateDeg(x: number, y: number, ox: number, oy: number, deg: number) {
-  const rad = (deg * Math.PI) / 180;
-  const dx = x - ox;
-  const dy = y - oy;
-  const c = Math.cos(rad);
-  const s = Math.sin(rad);
-  return { x: ox + dx * c - dy * s, y: oy + dx * s + dy * c };
-}
-
-function leanChain(chain: Chain, hipX: number, deg: number): Chain {
-  const turn = (x: number, y: number) => rotateDeg(x, y, hipX, HIP_Y, deg);
-  const a = turn(chain.ax, chain.ay);
-  const b = turn(chain.bx, chain.by);
-  const c = turn(chain.cx, chain.cy);
-  const d = turn(chain.dx, chain.dy);
-  return {
-    ax: a.x,
-    ay: a.y,
-    bx: b.x,
-    by: b.y,
-    cx: c.x,
-    cy: c.y,
-    dx: d.x,
-    dy: d.y,
-  };
-}
-
-function mirrorLimb(limb: Limb, face: number): Limb {
-  return {
-    hip: limb.hip * face,
-    knee: limb.knee * face,
-    ankle: limb.ankle * face,
-  };
-}
-
-function posedLegs(src: Angles, face: number, hipX: number): [Chain, Chain] {
-  return [0, 1].map((index) =>
-    buildChain(
+function climbStick(phase: number, face: number, up: boolean): Stick {
+  const lean = up ? 16 : 8;
+  const hipX = CX + 3.2 * face;
+  const shoulderX = CX + 3.6 * face;
+  const headX = CX + 2.4 * face;
+  const legs = [0, 1].map((index) => {
+    const limb = climbLeg(phase + index * 0.5);
+    return buildChain(
       hipX,
       HIP_Y,
-      mirrorLimb(src.legs[index], face),
+      {
+        hip: limb.hip * face,
+        knee: limb.knee * face,
+        ankle: limb.ankle * face,
+      },
       THIGH,
       SHIN,
       FOOT,
-    ),
-  ) as [Chain, Chain];
-}
-
-function footLocal(u: number) {
-  const t = wrap(u);
-  if (t >= STANCE_A && t < STANCE_B) {
-    const st = (t - STANCE_A) / (STANCE_B - STANCE_A);
-    const roll = st > 0.72 ? smooth((st - 0.72) / 0.28) : 0;
-    return {
-      x: lerp(CONTACT_X, TOEOFF_X, st),
-      lift: 0,
-      roll,
-      stance: true,
-    };
-  }
-  const p = t >= STANCE_B ? t - STANCE_B : t + (1 - STANCE_B);
-  const span = STANCE_A + (1 - STANCE_B);
-  const s = clamp(p / span, 0, 1);
-  return {
-    x: lerp(TOEOFF_X, CONTACT_X, smooth(s)),
-    lift: Math.sin(s * Math.PI) * 8,
-    roll: 0,
-    stance: false,
-  };
-}
-
-function chainFromAnkle(
-  hipX: number,
-  ankleX: number,
-  ankleY: number,
-  roll: number,
-  forward: number,
-): Chain {
-  const ik = solveLeg(hipX, ankleX, ankleY);
-  const dir = forward >= 0 ? 1 : -1;
-  const flat = Math.atan2(dir, 0.2);
-  const pitched = Math.atan2(dir * 0.35, 0.95);
-  const toeAng = lerp(flat, pitched, roll);
-  return buildChain(
-    hipX,
-    HIP_Y,
-    { hip: ik.hip, knee: ik.knee, ankle: toeAng - ik.shin },
-    THIGH,
-    SHIN,
-    FOOT,
-  );
-}
-
-function strideLegs(
-  phase: number,
-  hipX: number,
-  face: number,
-  bob: number,
-  sample: LookSample,
-  plants: [Plant, Plant],
-  lock: boolean,
-  dt: number,
-): [Chain, Chain] {
-  const built: Chain[] = [];
-  for (let index = 0; index < 2; index++) {
-    const local = footLocal(phase + index * 0.5);
-    const plant = plants[index];
-    const other = plants[1 - index];
-    const hipAnkle = hipX + local.x * face;
-    const ankleY = GROUND_Y - bob - local.lift;
-    let ankleX = hipAnkle;
-    const canLock =
-      lock && local.stance && !other.held && Math.abs(face) > 0.84;
-    if (canLock) {
-      if (!plant.held) {
-        plant.held = true;
-        plant.worldX = sample.x + hipAnkle;
-      }
-      const lockedX = plant.worldX - sample.x;
-      if (Math.abs(lockedX - hipX) > 16.8) {
-        plant.held = false;
-        plant.blend = Math.max(0, plant.blend - dt / 0.04);
-        ankleX = lerp(hipAnkle, lockedX, plant.blend);
-      } else {
-        plant.blend = 1;
-        ankleX = lockedX;
-      }
-    } else {
-      const lockedX = plant.worldX - sample.x;
-      plant.held = false;
-      plant.blend = Math.max(0, plant.blend - dt / 0.05);
-      ankleX =
-        plant.blend > 0 ? lerp(hipAnkle, lockedX, plant.blend) : hipAnkle;
-    }
-    built.push(chainFromAnkle(hipX, ankleX, ankleY, local.roll, face));
-  }
-  return built as [Chain, Chain];
-}
-
-function idleLegs(face: number, hipX: number, bob: number): [Chain, Chain] {
-  return [2.2, -1.6].map((offset) => {
-    const ankleX = hipX + offset * face;
-    const ankleY = GROUND_Y - bob;
-    return chainFromAnkle(hipX, ankleX, ankleY, 0, face || 1);
+    );
   }) as [Chain, Chain];
-}
-
-function mixChain(a: Chain, b: Chain, t: number): Chain {
-  const m = (from: number, to: number) => lerp(from, to, t);
+  const arms = [0, 1].map((index) => {
+    const limb = climbArm(phase + index * 0.5);
+    return rotateChain(
+      buildChain(
+        shoulderX,
+        SHOULDER_Y,
+        {
+          hip: limb.hip * face,
+          knee: limb.knee * face,
+          ankle: limb.ankle * face,
+        },
+        UPPER_ARM,
+        FOREARM,
+        0,
+      ),
+      hipX,
+      HIP_Y,
+      lean,
+    );
+  }) as [Chain, Chain];
+  const shoulder = rotateDeg(shoulderX, SHOULDER_Y, hipX, HIP_Y, lean);
+  const head = rotateDeg(headX, HEAD_Y, hipX, HIP_Y, lean);
+  const eye = rotateDeg(headX + face * 1.45, HEAD_Y - 0.2, hipX, HIP_Y, lean);
   return {
-    ax: m(a.ax, b.ax),
-    ay: m(a.ay, b.ay),
-    bx: m(a.bx, b.bx),
-    by: m(a.by, b.by),
-    cx: m(a.cx, b.cx),
-    cy: m(a.cy, b.cy),
-    dx: m(a.dx, b.dx),
-    dy: m(a.dy, b.dy),
+    lean,
+    hipX,
+    hipY: HIP_Y,
+    shoulderX: shoulder.x,
+    shoulderY: shoulder.y,
+    headX: head.x,
+    headY: head.y,
+    eyeX: eye.x,
+    eyeY: eye.y,
+    legs,
+    arms,
   };
 }
 
-function mixPair(
-  a: [Chain, Chain],
-  b: [Chain, Chain],
-  t: number,
-): [Chain, Chain] {
-  return [mixChain(a[0], b[0], t), mixChain(a[1], b[1], t)];
-}
-
-function cloneChain(chain: Chain): Chain {
-  return { ...chain };
+function enforcePlants(
+  stick: Stick,
+  look: Look,
+  sample: LookSample,
+  face: number,
+) {
+  look.plants.forEach((plant, index) => {
+    if (!plant.held) {
+      return;
+    }
+    stick.legs[index] = makeLeg(
+      stick.hipX,
+      stick.hipY,
+      plant.worldX - sample.x,
+      GROUND_Y,
+      face,
+      0,
+    );
+  });
 }
 
 function modeOf(sample: LookSample): Mode {
@@ -703,14 +869,41 @@ function spring(
   return { value: value + nextVel * dt, vel: nextVel };
 }
 
-function place(x: number, y: number, compress: number, bob: number) {
-  const sy = 1 - clamp(compress, -0.35, 1.2) * 0.16;
-  return { x, y: GROUND_Y + sy * (y - GROUND_Y) + bob };
+function flightKind(age: number, vy: number) {
+  if (age < 0.09) {
+    return "crouch";
+  }
+  if (vy < -80) {
+    return "extend";
+  }
+  if (vy < 170) {
+    return "apex";
+  }
+  if (vy < 320) {
+    return "fall";
+  }
+  return "reach";
+}
+
+function turnStick(look: Look, phase: number): Stick {
+  const from = look.brakeFrom ?? kinematicRun(phase, look.skidFace);
+  const brake = brakeStick(look.skidFace);
+  const narrow = narrowStick();
+  const next = kinematicRun(phase, look.turnTo as 1 | -1);
+  const u = look.turnU;
+  if (u < 0.34) {
+    return mixStick(from, brake, smooth(u / 0.34));
+  }
+  if (u < 0.67) {
+    return mixStick(brake, narrow, smooth((u - 0.34) / 0.33));
+  }
+  return mixStick(narrow, next, smooth((u - 0.67) / 0.33));
 }
 
 /**
  * Advance the drawable pose by one rendered frame.
- * Facing eases through a turn; hair is a world-space spring and is not mirrored.
+ * A reversal freezes the stride and blends joint positions through a brake
+ * and a narrow in-between pose. Hair is a world-space spring.
  */
 export function stepLook(
   look: Look,
@@ -720,12 +913,28 @@ export function stepLook(
   const step = clamp(dt, 0, 0.05);
   look.time += step;
 
-  const rawDx = sample.x - look.visualX;
-  const rawDy = sample.y - look.visualY;
-  const dx = clamp(rawDx, -500 * step, 500 * step);
-  const dy = clamp(rawDy, -1200 * step, 1200 * step);
+  const dx = clamp(sample.x - look.visualX, -500 * step, 500 * step);
+  const dy = clamp(sample.y - look.visualY, -1200 * step, 1200 * step);
 
-  look.phase = wrap(look.phase + Math.abs(dx) / STRIDE);
+  if (sample.facing !== look.turnTo) {
+    look.skidFace = look.turnTo;
+    look.brakeFrom = look.prevStick ? cloneStick(look.prevStick) : null;
+    look.turnFrom = look.face;
+    look.turnTo = sample.facing;
+    look.turnU = 0;
+    clearPlants(look);
+  }
+  if (look.turnU < 1) {
+    look.turnU = Math.min(1, look.turnU + step / TURN_TIME);
+    look.face = lerp(look.turnFrom, look.turnTo, smooth(look.turnU));
+  } else {
+    look.face = look.turnTo;
+  }
+
+  // The stride keeps spinning if phase advances through the brake.
+  if (look.turnU >= 1) {
+    look.phase = wrap(look.phase + Math.abs(dx) / STRIDE);
+  }
   if (sample.climbing) {
     look.climbPhase = wrap(look.climbPhase + Math.abs(dy) / CLIMB_STRIDE);
   }
@@ -737,26 +946,17 @@ export function stepLook(
     look.weights[key] += (target - look.weights[key]) * blend;
   }
 
-  // Crossfade facing over ~180ms. Limb targets use this scalar; nothing flips scaleX.
-  if (sample.facing !== look.turnTo) {
-    look.turnFrom = look.face;
-    look.turnTo = sample.facing;
-    look.turnU = 0;
-  }
-  if (look.turnU < 1) {
-    look.turnU = Math.min(1, look.turnU + step / TURN_TIME);
-    look.face = lerp(look.turnFrom, look.turnTo, smooth(look.turnU));
-  } else {
-    look.face = look.turnTo;
-  }
-  const turnLean =
-    look.turnU < 1 ? Math.sin(look.turnU * Math.PI) * 42 * look.turnTo : 0;
-
+  const braking = look.turnU < 1;
   if (sample.climbing) {
-    look.airTime = 0.4;
+    look.airTime = 0;
     look.landAge = -1;
+    look.takeoffAge = -1;
   } else if (!sample.onGround) {
-    look.airTime += step;
+    if (look.takeoffAge < 0) {
+      look.takeoffAge = 0;
+    }
+    look.takeoffAge += step;
+    look.airTime = look.takeoffAge;
     look.landAge = -1;
   } else {
     if (look.airborne) {
@@ -766,107 +966,87 @@ export function stepLook(
       look.landAge += step;
     }
     look.airTime = 0;
+    look.takeoffAge = -1;
+    look.lastGroundY = sample.y;
   }
-  const landEnv =
-    look.landAge >= 0 && look.landAge < 0.18
-      ? Math.cos(clamp(look.landAge / 0.18, 0, 1) * (Math.PI / 2))
-      : 0;
-  const antIn = smooth(clamp(look.airTime / 0.08, 0, 1));
-  const antOut = clamp(1 - Math.max(0, look.airTime - 0.06) / 0.12, 0, 1);
-  const ant = !sample.onGround && !sample.climbing ? antIn * antOut : 0;
 
-  const speed = clamp(Math.abs(sample.vx) / 280, 0, 1);
-  const parts: Record<Mode, Angles> = {
-    idle: idleAngles(look.time),
-    run: runAngles(look.phase, Math.max(speed, 0.35)),
-    jump: flightAngles(look.airTime, sample.vy),
-    fall: flightAngles(look.airTime, sample.vy),
-    climb: climbAngles(look.climbPhase, sample.vy <= 0),
-  };
-  const angles = blendAngles(parts, look.weights);
-  angles.bob += ant * 3.6 + landEnv * 4.8;
-  angles.lean = clamp(angles.lean + turnLean + ant * 7, -50, 50);
-  look.compress = landEnv * 0.95 + ant * 0.22;
+  const landing = sample.onGround && look.landAge >= 0 && look.landAge < 0.42;
+  const dir = (braking ? look.turnTo : sample.facing) as 1 | -1;
+  let cap = 8;
+  let target: Stick;
 
-  const face = look.face;
-  const hipX = CX + face * (angles.hipX - CX);
-  const shoulderX = CX + face * (angles.shoulderX - CX);
-  const headX = CX + face * (angles.headX - CX);
-  const lockStride =
-    sample.onGround &&
-    !sample.climbing &&
-    look.weights.run > 0.92 &&
-    Math.abs(face) > 0.84 &&
-    look.turnU >= 1;
-
-  const groundTarget = (): [Chain, Chain] => {
-    const stride = strideLegs(
-      look.phase,
-      hipX,
-      face,
-      angles.bob,
-      sample,
-      look.plants,
-      lockStride,
-      step,
-    );
-    if (lockStride) {
-      return stride;
-    }
-    const idle = idleLegs(face, hipX, angles.bob);
-    const w = clamp(look.weights.run / 0.92, 0, 1);
-    return mixPair(idle, stride, w);
-  };
-
-  let legs: [Chain, Chain];
   if (sample.climbing) {
-    legs = posedLegs(angles, face, hipX);
-    look.recover = 0;
-    for (const plant of look.plants) {
-      plant.held = false;
-      plant.blend = 0;
+    const climb = climbStick(look.climbPhase, sample.facing, sample.vy <= 0);
+    if (!look.wasClimbing) {
+      look.mountFrom = look.prevStick ? cloneStick(look.prevStick) : null;
+      look.mountU = look.mountFrom ? 0 : 1;
+      look.wasClimbing = true;
     }
-  } else if (!sample.onGround || look.recover > 0) {
-    const flight = flightAngles(look.airTime, sample.vy);
-    const target = !sample.onGround
-      ? posedLegs(flight, face, hipX)
-      : groundTarget();
-    const follow = 1 - Math.exp(-step / 0.04);
-    legs = look.prevLegs ? mixPair(look.prevLegs, target, follow) : target;
-    if (sample.onGround) {
-      look.recover = Math.max(0, look.recover - step / 0.22);
+    if (look.mountFrom && look.mountU < 1) {
+      look.mountU = Math.min(1, look.mountU + step / 0.22);
+      target = mixStick(look.mountFrom, climb, smooth(look.mountU));
     } else {
-      look.recover = 1;
-      for (const plant of look.plants) {
-        plant.held = false;
-      }
+      target = climb;
     }
+    look.dismountFrom = cloneStick(target);
+    look.dismountU = 1;
+    clearPlants(look);
+    cap = look.mountU < 1 ? 2.4 : 99;
+  } else if (look.wasClimbing || look.dismountU < 1) {
+    if (look.wasClimbing) {
+      look.wasClimbing = false;
+      look.dismountU = 0;
+    }
+    look.dismountU = Math.min(1, look.dismountU + step / 0.28);
+    const ground = idleStick(look.time, sample.facing);
+    target = look.dismountFrom
+      ? mixStick(look.dismountFrom, ground, smooth(look.dismountU))
+      : ground;
+    clearPlants(look);
+    cap = 2.4;
+  } else if (braking) {
+    target = turnStick(look, look.phase);
+    clearPlants(look);
+    cap = 4;
+  } else if (!sample.onGround) {
+    target = flightStick(flightKind(look.takeoffAge, sample.vy), dir);
+    clearPlants(look);
+    cap = 2;
+  } else if (landing) {
+    const squash = squashStick(sample.facing);
+    // Hold the crouch through the squash peak, then open back into the run.
+    if (look.landAge < 0.16) {
+      target = squash;
+    } else {
+      const run = kinematicRun(look.phase, sample.facing);
+      target = mixStick(squash, run, smooth((look.landAge - 0.16) / 0.26));
+    }
+    clearPlants(look);
+    cap = 2;
+  } else if (
+    sample.onGround &&
+    Math.abs(sample.vx) > 18 &&
+    look.weights.run > 0.92
+  ) {
+    target = lockedRun(look.phase, sample.facing, sample, look);
+    cap = 8;
   } else {
-    legs = groundTarget();
-  }
-  look.prevLegs = [cloneChain(legs[0]), cloneChain(legs[1])];
-
-  const arms = [0, 1].map((index) => {
-    const chain = buildChain(
-      shoulderX,
-      SHOULDER_Y,
-      mirrorLimb(angles.arms[index], face),
-      UPPER_ARM,
-      FOREARM,
-      0,
+    const run = kinematicRun(look.phase, sample.facing || look.turnTo);
+    target = mixStick(
+      idleStick(look.time, sample.facing || look.turnTo),
+      run,
+      clamp(look.weights.run / 0.92, 0, 1),
     );
-    return leanChain(chain, hipX, angles.lean);
-  }) as [Chain, Chain];
+    clearPlants(look);
+    cap = 2.4;
+  }
 
-  const head = rotateDeg(headX, angles.headY, hipX, HIP_Y, angles.lean);
-  const eye = rotateDeg(
-    headX + face * 1.45,
-    angles.headY - 0.2,
-    hipX,
-    HIP_Y,
-    angles.lean,
-  );
-  const shoulder = rotateDeg(shoulderX, SHOULDER_Y, hipX, HIP_Y, angles.lean);
+  if (look.prevStick && cap < 90) {
+    target = capStick(look.prevStick, target, cap);
+  }
+  if (!sample.climbing && !braking && !landing && sample.onGround) {
+    enforcePlants(target, look, sample, sample.facing);
+  }
 
   let ax = 0;
   if (look.vxReady) {
@@ -875,68 +1055,91 @@ export function stepLook(
     look.vxReady = true;
   }
   look.prevVx = sample.vx;
-  // Opposite velocity, plus a kick from acceleration so a reversal overshoots.
   const hairTarget = clamp(
-    (-sample.vx / 280) * 62 + (-ax / 2800) * 28,
+    (-sample.vx / 280) * 70 + clamp(-ax / 8000, -16, 16),
     -78,
     78,
   );
-  const hair = spring(look.hair, look.hairVel, hairTarget, 42, 6.5, step);
+  const hair = spring(look.hair, look.hairVel, hairTarget, 14, 3.2, step);
   look.hair = hair.value;
   look.hairVel = hair.vel;
 
   const spikes = SPIKES.map((spike, index) => {
-    const follow = 0.72 + (spike.len / 10.2) * 0.5;
-    const flutter = Math.sin(look.time * 11 + index) * (0.8 + speed * 2.2);
-    const target =
-      spike.rest * (1 - speed * 0.55) + look.hair * follow + flutter;
     const next = spring(
       look.spike[index],
       look.spikeVel[index],
-      target,
-      26 - index * 2,
-      5.2,
+      spike.rest + look.hair,
+      spike.k,
+      spike.c,
       step,
     );
     look.spike[index] = next.value;
     look.spikeVel[index] = next.vel;
-    return {
-      angle: next.value,
-      len: spike.len * (1 + speed * 0.35),
-      w: spike.w,
-    };
+    return { angle: next.value, len: spike.len, w: spike.w };
   });
 
-  const hairPoint = place(
-    rotateDeg(headX, angles.headY - 4.2, hipX, HIP_Y, angles.lean).x,
-    rotateDeg(headX, angles.headY - 4.2, hipX, HIP_Y, angles.lean).y,
-    look.compress,
-    angles.bob,
-  );
+  let compress = 0;
+  if (
+    !sample.onGround &&
+    !sample.climbing &&
+    look.takeoffAge >= 0 &&
+    look.takeoffAge < 0.16
+  ) {
+    const rise = smooth(look.takeoffAge / 0.08);
+    const fall = 1 - smooth(clamp((look.takeoffAge - 0.07) / 0.09, 0, 1));
+    compress = 0.62 * rise * fall;
+  }
+  if (look.landAge >= 0 && look.landAge < 0.24) {
+    compress = Math.sin(Math.PI * clamp(look.landAge / 0.24, 0, 1));
+  }
+  look.compress = compress;
 
+  let drop = 0;
+  if (
+    !sample.onGround &&
+    !sample.climbing &&
+    sample.vy < -80 &&
+    look.takeoffAge >= 0
+  ) {
+    const hold = 0.11;
+    const release = 0.14;
+    const pin = look.lastGroundY - sample.y;
+    if (look.takeoffAge < hold) {
+      drop = pin;
+    } else if (look.takeoffAge < hold + release) {
+      const t = (look.takeoffAge - hold) / release;
+      drop = pin * (1 - smooth(t));
+    }
+  }
+
+  const sy = 1 - clamp(compress, -0.35, 1.2) * BODY_SQUASH;
+  const hairY = GROUND_Y + sy * (target.headY - 4.3 - GROUND_Y);
+
+  look.prevStick = cloneStick(target);
   look.visualX = sample.x;
   look.visualY = sample.y;
   look.airborne = !sample.onGround && !sample.climbing;
 
   return {
-    bob: angles.bob,
-    lean: angles.lean,
-    compress: look.compress,
-    hipX,
-    hipY: HIP_Y,
-    shoulderX: shoulder.x,
-    shoulderY: shoulder.y,
-    headX: head.x,
-    headY: head.y,
-    eyeX: eye.x,
-    eyeY: eye.y,
-    legs,
-    arms,
-    hairX: hairPoint.x,
-    hairY: hairPoint.y,
+    bob: 0,
+    lean: target.lean,
+    compress,
+    drop,
+    hipX: target.hipX,
+    hipY: target.hipY,
+    shoulderX: target.shoulderX,
+    shoulderY: target.shoulderY,
+    headX: target.headX,
+    headY: target.headY,
+    eyeX: target.eyeX,
+    eyeY: target.eyeY,
+    legs: target.legs,
+    arms: target.arms,
+    hairX: target.headX,
+    hairY,
     spikes,
     planted: [look.plants[0].held, look.plants[1].held],
-    footWorldX: [sample.x + legs[0].cx, sample.x + legs[1].cx],
+    footWorldX: [sample.x + target.legs[0].cx, sample.x + target.legs[1].cx],
   };
 }
 

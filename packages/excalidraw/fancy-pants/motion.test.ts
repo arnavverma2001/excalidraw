@@ -109,6 +109,33 @@ describe("fancy pants motion", () => {
     });
     const planted = runs.some((run) => run.best >= 4 && run.bestSpan < 1.5);
     expect(planted).toBe(true);
+
+    let split = false;
+    let bothPlanted = 0;
+    let bothAir = 0;
+    x = 0;
+    const again = createLook(0, 0, 1);
+    for (let i = 0; i < 80; i++) {
+      x += 280 / 60;
+      const frame = stepLook(again, sample(x), 1 / 60);
+      if (frame.planted[0] && frame.planted[1]) {
+        bothPlanted += 1;
+      }
+      const down = frame.legs.filter((leg) => leg.cy > 41.5).length;
+      if (i > 18 && down === 0) {
+        bothAir += 1;
+      }
+      if (frame.planted[0] !== frame.planted[1]) {
+        const stance = frame.planted[0] ? 0 : 1;
+        const swing = 1 - stance;
+        if (frame.legs[stance].cy > 41.5 && frame.legs[swing].cy < 36) {
+          split = true;
+        }
+      }
+    }
+    expect(split).toBe(true);
+    expect(bothPlanted).toBe(0);
+    expect(bothAir).toBe(0);
   });
 
   it("eases a turn instead of mirroring in one frame", () => {
@@ -122,16 +149,40 @@ describe("fancy pants motion", () => {
 
     const faces: number[] = [];
     const footX: number[] = [];
-    for (let i = 0; i < 14; i++) {
+    const frames: ReturnType<typeof stepLook>[] = [];
+    const phaseAtTurn = look.phase;
+    let phaseMid = phaseAtTurn;
+    for (let i = 0; i < 24; i++) {
       x -= 4;
       const frame = stepLook(look, sample(x, { vx: -280, facing: -1 }), 1 / 60);
       faces.push(look.face);
       footX.push(frame.legs[0].cx);
+      frames.push(frame);
+      if (i === 12) {
+        phaseMid = look.phase;
+      }
     }
 
+    expect(Math.abs(phaseMid - phaseAtTurn)).toBeLessThan(0.02);
     expect(faces[0]).toBeGreaterThan(0.7);
     expect(faces.some((face) => Math.abs(face) < 0.35)).toBe(true);
     expect(faces[faces.length - 1]).toBeLessThan(-0.85);
+    expect(
+      frames.some(
+        (frame) =>
+          Math.abs(frame.lean) > 18 &&
+          frame.legs[0].cy > 40 &&
+          frame.legs[1].cy > 40,
+      ),
+    ).toBe(true);
+    expect(
+      frames.some(
+        (frame) =>
+          Math.abs(frame.legs[0].cx - 13) < 4 &&
+          Math.abs(frame.legs[1].cx - 13) < 4 &&
+          Math.abs(frame.eyeX - frame.headX) < 0.8,
+      ),
+    ).toBe(true);
     let maxStep = 0;
     for (let i = 1; i < faces.length; i++) {
       maxStep = Math.max(maxStep, Math.abs(faces[i] - faces[i - 1]));
@@ -156,9 +207,19 @@ describe("fancy pants motion", () => {
       prevHair = look.hair;
     }
     expect(look.hair).toBeLessThan(-40);
+    expect(look.spike[2]).toBeLessThan(-20);
+
+    for (let i = 0; i < 8; i++) {
+      x -= 4;
+      stepLook(look, sample(x, { vx: -280, facing: -1 }), 1 / 60);
+      maxStep = Math.max(maxStep, Math.abs(look.hair - prevHair));
+      prevHair = look.hair;
+    }
+    expect(look.hair).toBeLessThan(-10);
+    expect(look.spike[2]).toBeLessThan(0);
 
     let peak = look.hair;
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 72; i++) {
       x -= 4;
       stepLook(look, sample(x, { vx: -280, facing: -1 }), 1 / 60);
       maxStep = Math.max(maxStep, Math.abs(look.hair - prevHair));
@@ -202,10 +263,24 @@ describe("fancy pants motion", () => {
       vy += 2800 / 60;
     }
 
+    let maxPoint = 0;
+    for (let i = 1; i < frames.length; i++) {
+      for (let leg = 0; leg < 2; leg++) {
+        const prev = frames[i - 1].legs[leg];
+        const next = frames[i].legs[leg];
+        for (const key of ["bx", "by", "cx", "cy"] as const) {
+          const dx = key === "bx" || key === "cx" ? next[key] - prev[key] : 0;
+          const dy = key === "by" || key === "cy" ? next[key] - prev[key] : 0;
+          maxPoint = Math.max(maxPoint, Math.hypot(dx, dy));
+        }
+      }
+    }
+    expect(maxPoint).toBeLessThan(2.6);
+
     const lengthAt = (index: number) =>
       (legLen(0, frames[index]) + legLen(1, frames[index])) / 2;
-    const early = Math.min(lengthAt(3), lengthAt(4), lengthAt(5));
-    const ascent = Math.max(lengthAt(10), lengthAt(11), lengthAt(12));
+    const early = Math.min(...[2, 3, 4, 5, 6].map(lengthAt));
+    const ascent = Math.max(...[9, 10, 11, 12, 13].map(lengthAt));
     expect(ascent).toBeGreaterThan(early + 1.5);
 
     const footY = (index: number) =>
@@ -221,22 +296,33 @@ describe("fancy pants motion", () => {
     const late = frames.length - 1;
     expect(footY(late)).toBeGreaterThan(footY(apex) + 2);
 
-    const landed = stepLook(
-      look,
-      sample(x, { x, y: 0, vx: 180, vy: 0, onGround: true, facing: 1 }),
-      1 / 60,
-    );
-    expect(landed.compress).toBeGreaterThan(0.7);
-    let recovered = landed;
-    for (let i = 0; i < 16; i++) {
-      x += 3;
-      recovered = stepLook(
+    const landing = [
+      stepLook(
         look,
         sample(x, { x, y: 0, vx: 180, vy: 0, onGround: true, facing: 1 }),
         1 / 60,
+      ),
+    ];
+    expect(landing[0].compress).toBeGreaterThan(0.05);
+    expect(landing[0].compress).toBeLessThan(0.4);
+    for (let i = 0; i < 18; i++) {
+      x += 3;
+      landing.push(
+        stepLook(
+          look,
+          sample(x, { x, y: 0, vx: 180, vy: 0, onGround: true, facing: 1 }),
+          1 / 60,
+        ),
       );
     }
-    expect(recovered.compress).toBeLessThan(0.15);
+    const peak = Math.max(
+      ...landing.slice(0, 10).map((frame) => frame.compress),
+    );
+    expect(peak).toBeGreaterThan(0.8);
+    expect(
+      landing.filter((frame) => frame.compress > 0.45).length,
+    ).toBeGreaterThan(3);
+    expect(landing[landing.length - 1].compress).toBeLessThan(0.15);
   });
 
   it("cycles a climb without a joint pop", () => {
@@ -266,5 +352,44 @@ describe("fancy pants motion", () => {
       seen = true;
     }
     expect(look.weights.climb).toBeGreaterThan(0.8);
+  });
+
+  it("blends a climb dismount instead of snapping", () => {
+    const look = createLook(0, 100, 1);
+    let y = 100;
+    let knee = 0;
+    for (let i = 0; i < 24; i++) {
+      y -= 170 / 60;
+      const frame = stepLook(
+        look,
+        sample(0, {
+          x: 0,
+          y,
+          vx: 0,
+          vy: -170,
+          onGround: false,
+          climbing: true,
+        }),
+        1 / 60,
+      );
+      knee = frame.legs[0].by;
+    }
+    let prev = knee;
+    for (let i = 0; i < 10; i++) {
+      const frame = stepLook(
+        look,
+        sample(0, {
+          x: 0,
+          y,
+          vx: 0,
+          vy: 0,
+          onGround: true,
+          climbing: false,
+        }),
+        1 / 60,
+      );
+      expect(Math.abs(frame.legs[0].by - prev)).toBeLessThan(3);
+      prev = frame.legs[0].by;
+    }
   });
 });

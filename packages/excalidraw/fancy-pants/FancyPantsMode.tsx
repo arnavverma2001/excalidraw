@@ -225,7 +225,7 @@ export const FancyPantsMode = ({
         .join(" ");
       setSnapshot({
         left: (visual.x + cameraX) * zoom + state.offsetLeft,
-        top: (visual.y + cameraY) * zoom + state.offsetTop,
+        top: (visual.y + pose.drop + cameraY) * zoom + state.offsetTop,
         width: current.w * zoom,
         height: current.h * zoom,
         pose,
