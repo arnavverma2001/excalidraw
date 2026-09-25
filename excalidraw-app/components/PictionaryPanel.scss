@@ -1,9 +1,11 @@
 .pictionary-panel {
   position: absolute;
-  top: 4.5rem;
+  top: 9rem;
   left: 50%;
   transform: translateX(-50%);
   width: min(22rem, calc(100% - 2rem));
+  max-height: calc(100% - 10.5rem);
+  overflow: auto;
   z-index: var(--zIndex-ui-top);
   pointer-events: auto;
   box-sizing: border-box;

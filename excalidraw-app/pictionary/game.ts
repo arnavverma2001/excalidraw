@@ -16,6 +16,7 @@ export type PictionaryRound = {
   startedAtMs: number;
   durationMs: number;
   status: RoundStatus;
+  endedAtMs: number | null;
   lastGuess: string | null;
   lastResult: "correct" | "incorrect" | null;
 };
@@ -72,16 +73,18 @@ export function startRound(options: {
     startedAtMs: options.nowMs,
     durationMs: options.durationMs ?? ROUND_DURATION_MS,
     status: "playing",
+    endedAtMs: null,
     lastGuess: null,
     lastResult: null,
   };
 }
 
 export function remainingMs(round: PictionaryRound, nowMs: number): number {
-  if (round.status !== "playing") {
+  if (round.status === "timeout") {
     return 0;
   }
-  return Math.max(0, round.startedAtMs + round.durationMs - nowMs);
+  const at = round.status === "playing" ? nowMs : round.endedAtMs ?? nowMs;
+  return Math.max(0, round.startedAtMs + round.durationMs - at);
 }
 
 export function formatClock(ms: number): string {
@@ -99,7 +102,11 @@ export function tickRound(
     return round;
   }
   if (nowMs >= round.startedAtMs + round.durationMs) {
-    return { ...round, status: "timeout" };
+    return {
+      ...round,
+      status: "timeout",
+      endedAtMs: round.startedAtMs + round.durationMs,
+    };
   }
   return round;
 }
@@ -122,6 +129,7 @@ export function submitGuess(
       round: {
         ...current,
         status: "correct",
+        endedAtMs: nowMs,
         lastGuess: guess.trim(),
         lastResult: "correct",
       },

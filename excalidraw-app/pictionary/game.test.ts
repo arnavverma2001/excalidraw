@@ -67,7 +67,8 @@ describe("pictionary round", () => {
     expect(result.outcome).toBe("correct");
     expect(result.round.status).toBe("correct");
     expect(result.round.lastResult).toBe("correct");
-    expect(remainingMs(result.round, 5_000)).toBe(0);
+    expect(remainingMs(result.round, 5_000)).toBe(ROUND_DURATION_MS - 5_000);
+    expect(remainingMs(result.round, 50_000)).toBe(ROUND_DURATION_MS - 5_000);
 
     const again = submitGuess(result.round, "ice cream", 6_000);
     expect(again.outcome).toBe("closed");
