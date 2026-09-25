@@ -14,7 +14,7 @@ const Limb = ({ chain, toe }: { chain: Chain; toe: boolean }) => (
     points={line(chain, toe)}
     fill="none"
     stroke={INK}
-    strokeWidth="1.9"
+    strokeWidth="1.35"
     strokeLinecap="round"
     strokeLinejoin="round"
   />
@@ -50,7 +50,7 @@ export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
             x2={pose.hipX}
             y2={pose.hipY}
             stroke={INK}
-            strokeWidth="1.9"
+            strokeWidth="1.35"
             strokeLinecap="round"
           />
           {legs.map(({ chain, index }) => (

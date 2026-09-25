@@ -1,6 +1,7 @@
 import {
   STRIDE,
   createLook,
+  flightStage,
   interpolatePosition,
   legCycle,
   stepLook,
@@ -171,6 +172,7 @@ describe("fancy pants motion", () => {
       frames.some(
         (frame) =>
           Math.abs(frame.lean) > 18 &&
+          frame.compress > 0.2 &&
           frame.legs[0].cy > 40 &&
           frame.legs[1].cy > 40,
       ),
@@ -234,6 +236,15 @@ describe("fancy pants motion", () => {
       stepLook(look, sample(x, { vx: 0, facing: -1 }), 1 / 60);
     }
     expect(Math.abs(look.hair)).toBeLessThan(18);
+  });
+
+  it("selects distinct takeoff, ascent, apex, fall, and reach stages", () => {
+    expect(flightStage(0.04, -620)).toBe("crouch");
+    expect(flightStage(0.13, -400)).toBe("extend");
+    expect(flightStage(0.2, -180)).toBe("rise");
+    expect(flightStage(0.32, 20)).toBe("apex");
+    expect(flightStage(0.45, 260)).toBe("fall");
+    expect(flightStage(0.58, 500)).toBe("reach");
   });
 
   it("crouches, extends, reaches, and compresses through a jump", () => {
@@ -330,7 +341,9 @@ describe("fancy pants motion", () => {
     let y = 100;
     let prev = 0;
     let seen = false;
-    for (let i = 0; i < 40; i++) {
+    let armOrderChanges = 0;
+    let previousOrder = 0;
+    for (let i = 0; i < 120; i++) {
       y -= 170 / 60;
       const frame = stepLook(
         look,
@@ -350,8 +363,16 @@ describe("fancy pants motion", () => {
       }
       prev = knee;
       seen = true;
+      const order = Math.sign(frame.arms[0].cy - frame.arms[1].cy);
+      if (previousOrder && order && order !== previousOrder) {
+        armOrderChanges += 1;
+      }
+      if (order) {
+        previousOrder = order;
+      }
     }
     expect(look.weights.climb).toBeGreaterThan(0.8);
+    expect(armOrderChanges).toBeGreaterThanOrEqual(5);
   });
 
   it("blends a climb dismount instead of snapping", () => {

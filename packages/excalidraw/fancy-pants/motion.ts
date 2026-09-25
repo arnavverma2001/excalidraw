@@ -3,13 +3,20 @@ import type { Body } from "./physics";
 /** Fixed physics step. Rendering interpolates the leftover fraction. */
 export const PHYSICS_DT = 1 / 120;
 
+/**
+ * The collision body stays 26×44 scene units, while the drawn character is
+ * deliberately larger. Pose-space/world-space conversions must include this
+ * scale or a numerically "planted" foot visibly skates.
+ */
+export const CHARACTER_RENDER_SCALE = 3;
+
 /** World distance for one full stride (both feet). */
-export const STRIDE = 56;
+export const STRIDE = 104;
 
 /** How hard a landing squashes the figure toward the feet. */
 export const BODY_SQUASH = 0.42;
 
-const CLIMB_STRIDE = 26;
+const CLIMB_STRIDE = 86;
 const HIP_Y = 28.4;
 const RUN_HIP_Y = 27.2;
 const SHOULDER_Y = 15.4;
@@ -19,20 +26,22 @@ const THIGH = 11.6;
 const SHIN = 11.0;
 const RUN_THIGH = 13.6;
 const RUN_SHIN = 12.8;
+const IDLE_THIGH = 8.8;
+const IDLE_SHIN = 8.3;
 const UPPER_ARM = 6.6;
 const FOREARM = 5.8;
 const FOOT = 4.2;
 const CX = 13;
-const TURN_TIME = 0.34;
-const STANCE_FRONT = 13;
-const STANCE_BACK = -15;
-const SWING_LIFT = 13;
+const TURN_TIME = 0.48;
+const STANCE_FRONT = STRIDE / 4 / CHARACTER_RENDER_SCALE;
+const STANCE_BACK = -STANCE_FRONT;
+const SWING_LIFT = 9;
 const SPIKES = [
-  { rest: -7, len: 14, w: 2.4, k: 32, c: 10 },
-  { rest: -3, len: 18, w: 2.6, k: 26, c: 8.5 },
-  { rest: 0, len: 21, w: 2.5, k: 20, c: 7.2 },
-  { rest: 3, len: 17, w: 2.3, k: 16, c: 6.4 },
-  { rest: 7, len: 13, w: 2.1, k: 12, c: 5.6 },
+  { rest: -12, len: 7.5, w: 2.5, k: 34, c: 8.5 },
+  { rest: -6, len: 10.5, w: 2.7, k: 28, c: 7.5 },
+  { rest: 0, len: 13, w: 2.8, k: 23, c: 6.7 },
+  { rest: 6, len: 10.2, w: 2.6, k: 19, c: 6.1 },
+  { rest: 12, len: 7.2, w: 2.4, k: 16, c: 5.7 },
 ];
 
 const MODES = ["idle", "run", "jump", "fall", "climb"] as const;
@@ -149,11 +158,6 @@ const smooth = (t: number) => {
   const x = clamp(t, 0, 1);
   return x * x * (3 - 2 * x);
 };
-
-const endPoint = (x: number, y: number, rad: number, len: number) => ({
-  x: x + Math.sin(rad) * len,
-  y: y + Math.cos(rad) * len,
-});
 
 const emptyPlant = (): Plant => ({ held: false, worldX: 0 });
 
@@ -474,6 +478,12 @@ function clearPlants(look: Look) {
   look.plants[1].held = false;
 }
 
+const visibleFootX = (bodyX: number, localX: number) =>
+  bodyX + CX + (localX - CX) * CHARACTER_RENDER_SCALE;
+
+const localFootX = (bodyX: number, worldX: number) =>
+  CX + (worldX - bodyX - CX) / CHARACTER_RENDER_SCALE;
+
 /** Feet positions for one gait cycle. Exactly one foot is in stance. */
 function footLocal(u: number, face: number, hipX: number) {
   const t = wrap(u);
@@ -576,7 +586,18 @@ function idleStick(time: number, face: number): Stick {
   const sway = Math.sin(time * 2.2) * 0.6;
   const stick = baseStick();
   const dir = face || 1;
-  stick.legs = poseFeet([2.4 + sway, -1.8 - sway], [GROUND_Y, GROUND_Y], dir);
+  stick.legs = [2.4 + sway, -1.8 - sway].map((offset, index) =>
+    makeLeg(
+      CX,
+      RUN_HIP_Y,
+      CX + offset * dir,
+      GROUND_Y,
+      index === 0 ? dir : -dir,
+      0,
+      IDLE_THIGH,
+      IDLE_SHIN,
+    ),
+  ) as [Chain, Chain];
   stick.arms = [
     makeArm(CX, SHOULDER_Y, CX - 1.4 * dir, SHOULDER_Y + 8.2),
     makeArm(CX, SHOULDER_Y, CX + 1.6 * dir, SHOULDER_Y + 7.6),
@@ -615,10 +636,12 @@ function lockedRun(
       if (!plant.held) {
         const prevX = look.prevStick?.legs[index].cx;
         plant.worldX =
-          prevX === undefined ? sample.x + foot.x : look.visualX + prevX;
+          prevX === undefined
+            ? visibleFootX(sample.x, foot.x)
+            : visibleFootX(look.visualX, prevX);
         plant.held = true;
       }
-      const ankleX = plant.worldX - sample.x;
+      const ankleX = localFootX(sample.x, plant.worldX);
       return makeLeg(CX, RUN_HIP_Y, ankleX, GROUND_Y, face, 0);
     }
     plant.held = false;
@@ -685,6 +708,20 @@ function flightStick(kind: string, face: number): Stick {
     applyLean(stick, -10 * dir, 1.6 * dir, -0.6);
     return stick;
   }
+  if (kind === "rise") {
+    stick.legs = poseFeet(
+      [-7.5, 5.5],
+      [GROUND_Y - 5, GROUND_Y - 8],
+      dir,
+      [0.8, 1.2],
+    );
+    stick.arms = [
+      makeArm(CX, SHOULDER_Y, CX + 4 * dir, SHOULDER_Y - 4.5),
+      makeArm(CX, SHOULDER_Y, CX - 2 * dir, SHOULDER_Y - 2),
+    ];
+    applyLean(stick, -4 * dir, 1.5 * dir, -0.2);
+    return stick;
+  }
   if (kind === "apex") {
     stick.legs = poseFeet([2.4, -1.2], [RUN_HIP_Y + 6.2, RUN_HIP_Y + 6.8], dir);
     stick.arms = [
@@ -722,91 +759,37 @@ function flightStick(kind: string, face: number): Stick {
   return stick;
 }
 
-function climbLeg(u: number): Limb {
-  const a = u * Math.PI * 2;
-  return {
-    hip: 0.42 + Math.sin(a) * 0.48,
-    knee: 0.42 + (0.5 + 0.5 * Math.cos(a)) * 0.7,
-    ankle: 0.25 + Math.sin(a) * 0.15,
-  };
-}
-
-function climbArm(u: number): Limb {
-  const a = (u + 0.5) * Math.PI * 2;
-  return {
-    hip: 2.02 + Math.sin(a) * 0.42,
-    knee: 0.28 + (0.5 + 0.5 * Math.cos(a)) * 0.35,
-    ankle: 0,
-  };
-}
-
-function buildChain(
-  x: number,
-  y: number,
-  limb: Limb,
-  upper: number,
-  lower: number,
-  tip: number,
-): Chain {
-  const joint = endPoint(x, y, limb.hip, upper);
-  const shin = limb.hip - limb.knee;
-  const end = endPoint(joint.x, joint.y, shin, lower);
-  const toe = endPoint(end.x, end.y, shin + limb.ankle, tip);
-  return {
-    ax: x,
-    ay: y,
-    bx: joint.x,
-    by: joint.y,
-    cx: end.x,
-    cy: end.y,
-    dx: toe.x,
-    dy: toe.y,
-  };
-}
-
 function climbStick(phase: number, face: number, up: boolean): Stick {
-  const lean = up ? 16 : 8;
-  const hipX = CX + 3.2 * face;
-  const shoulderX = CX + 3.6 * face;
+  const lean = up ? 12 : 6;
+  const hipX = CX + 1.8 * face;
+  const shoulderX = CX + 2.8 * face;
   const headX = CX + 2.4 * face;
+  const cycle = (index: number) =>
+    (phase + index * 0.5) * Math.PI * 2;
   const legs = [0, 1].map((index) => {
-    const limb = climbLeg(phase + index * 0.5);
-    return buildChain(
-      hipX,
-      HIP_Y,
-      {
-        hip: limb.hip * face,
-        knee: limb.knee * face,
-        ankle: limb.ankle * face,
-      },
-      THIGH,
-      SHIN,
-      FOOT,
-    );
+    const a = cycle(index);
+    const ankleX = CX + face * (7.2 + Math.cos(a) * 1.6);
+    const ankleY = 34.5 - Math.sin(a) * 5.5;
+    return makeLeg(hipX, HIP_Y, ankleX, ankleY, face, 0.7, THIGH, SHIN);
   }) as [Chain, Chain];
   const arms = [0, 1].map((index) => {
-    const limb = climbArm(phase + index * 0.5);
-    return rotateChain(
-      buildChain(
-        shoulderX,
-        SHOULDER_Y,
-        {
-          hip: limb.hip * face,
-          knee: limb.knee * face,
-          ankle: limb.ankle * face,
-        },
-        UPPER_ARM,
-        FOREARM,
-        0,
-      ),
-      hipX,
-      HIP_Y,
-      lean,
+    const a = cycle(index);
+    return makeArm(
+      shoulderX,
+      SHOULDER_Y,
+      CX + face * (8.8 + Math.cos(a) * 1.4),
+      11.5 + Math.sin(a) * 5,
     );
   }) as [Chain, Chain];
-  const shoulder = rotateDeg(shoulderX, SHOULDER_Y, hipX, HIP_Y, lean);
-  const head = rotateDeg(headX, HEAD_Y, hipX, HIP_Y, lean);
-  const eye = rotateDeg(headX + face * 1.45, HEAD_Y - 0.2, hipX, HIP_Y, lean);
+  const shoulder = rotateDeg(shoulderX, SHOULDER_Y, hipX, HIP_Y, lean * face);
+  const head = rotateDeg(headX, HEAD_Y, hipX, HIP_Y, lean * face);
+  const eye = rotateDeg(
+    headX + face * 1.45,
+    HEAD_Y - 0.2,
+    hipX,
+    HIP_Y,
+    lean * face,
+  );
   return {
     lean,
     hipX,
@@ -835,7 +818,7 @@ function enforcePlants(
     stick.legs[index] = makeLeg(
       stick.hipX,
       stick.hipY,
-      plant.worldX - sample.x,
+      localFootX(sample.x, plant.worldX),
       GROUND_Y,
       face,
       0,
@@ -869,17 +852,28 @@ function spring(
   return { value: value + nextVel * dt, vel: nextVel };
 }
 
-function flightKind(age: number, vy: number) {
-  if (age < 0.09) {
+export type FlightStage =
+  | "crouch"
+  | "extend"
+  | "rise"
+  | "apex"
+  | "fall"
+  | "reach";
+
+export function flightStage(age: number, vy: number): FlightStage {
+  if (age < 0.1) {
     return "crouch";
   }
-  if (vy < -80) {
+  if (age < 0.17) {
     return "extend";
   }
-  if (vy < 170) {
+  if (vy < -90) {
+    return "rise";
+  }
+  if (vy < 130) {
     return "apex";
   }
-  if (vy < 320) {
+  if (vy < 390) {
     return "fall";
   }
   return "reach";
@@ -1009,7 +1003,7 @@ export function stepLook(
     clearPlants(look);
     cap = 4;
   } else if (!sample.onGround) {
-    target = flightStick(flightKind(look.takeoffAge, sample.vy), dir);
+    target = flightStick(flightStage(look.takeoffAge, sample.vy), dir);
     clearPlants(look);
     cap = 2;
   } else if (landing) {
@@ -1092,6 +1086,10 @@ export function stepLook(
   if (look.landAge >= 0 && look.landAge < 0.24) {
     compress = Math.sin(Math.PI * clamp(look.landAge / 0.24, 0, 1));
   }
+  if (braking) {
+    const brakeU = clamp(look.turnU / 0.7, 0, 1);
+    compress = Math.max(compress, Math.sin(brakeU * Math.PI) * 0.42);
+  }
   look.compress = compress;
 
   let drop = 0;
@@ -1101,8 +1099,8 @@ export function stepLook(
     sample.vy < -80 &&
     look.takeoffAge >= 0
   ) {
-    const hold = 0.11;
-    const release = 0.14;
+    const hold = 0.1;
+    const release = 0.12;
     const pin = look.lastGroundY - sample.y;
     if (look.takeoffAge < hold) {
       drop = pin;
@@ -1113,7 +1111,7 @@ export function stepLook(
   }
 
   const sy = 1 - clamp(compress, -0.35, 1.2) * BODY_SQUASH;
-  const hairY = GROUND_Y + sy * (target.headY - 4.3 - GROUND_Y);
+  const hairY = GROUND_Y + sy * (target.headY - GROUND_Y);
 
   look.prevStick = cloneStick(target);
   look.visualX = sample.x;
@@ -1139,7 +1137,10 @@ export function stepLook(
     hairY,
     spikes,
     planted: [look.plants[0].held, look.plants[1].held],
-    footWorldX: [sample.x + target.legs[0].cx, sample.x + target.legs[1].cx],
+    footWorldX: [
+      visibleFootX(sample.x, target.legs[0].cx),
+      visibleFootX(sample.x, target.legs[1].cx),
+    ],
   };
 }
 

@@ -9,6 +9,7 @@ import {
   isJumpToken,
 } from "./controls";
 import {
+  CHARACTER_RENDER_SCALE,
   interpolatePosition,
   lookFromBody,
   PHYSICS_DT,
@@ -223,11 +224,21 @@ export const FancyPantsMode = ({
       const held = ["arrowleft", "arrowright", "arrowup"]
         .filter((token) => keys.has(token))
         .join(" ");
+      const drawWidth = current.w * CHARACTER_RENDER_SCALE;
+      const drawHeight = current.h * CHARACTER_RENDER_SCALE;
       setSnapshot({
-        left: (visual.x + cameraX) * zoom + state.offsetLeft,
-        top: (visual.y + pose.drop + cameraY) * zoom + state.offsetTop,
-        width: current.w * zoom,
-        height: current.h * zoom,
+        left:
+          (visual.x +
+            current.w / 2 -
+            drawWidth / 2 +
+            cameraX) *
+            zoom +
+          state.offsetLeft,
+        top:
+          (visual.y + current.h - drawHeight + pose.drop + cameraY) * zoom +
+          state.offsetTop,
+        width: drawWidth * zoom,
+        height: drawHeight * zoom,
         pose,
         anim: current.anim,
         sceneX: visual.x,
