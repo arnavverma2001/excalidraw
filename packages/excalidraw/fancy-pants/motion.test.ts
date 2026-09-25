@@ -1,4 +1,10 @@
-import { createLook, interpolatePosition, legCycle, stepLook } from "./motion";
+import {
+  STRIDE,
+  createLook,
+  interpolatePosition,
+  legCycle,
+  stepLook,
+} from "./motion";
 
 import type { LookSample } from "./motion";
 
@@ -37,7 +43,7 @@ describe("fancy pants motion", () => {
     const before = look.phase;
     stepLook(look, sample(8), 1 / 60);
     expect(look.phase).toBeGreaterThan(before);
-    expect(look.phase - before).toBeCloseTo(8 / 40, 2);
+    expect(look.phase - before).toBeCloseTo(8 / STRIDE, 2);
 
     let prev = legCycle(0).knee;
     for (let i = 1; i <= 24; i++) {
@@ -101,28 +107,136 @@ describe("fancy pants motion", () => {
       flush();
       return { best, bestSpan };
     });
-    const planted = runs.some((run) => run.best >= 2 && run.bestSpan < 1.5);
+    const planted = runs.some((run) => run.best >= 4 && run.bestSpan < 1.5);
     expect(planted).toBe(true);
   });
 
-  it("overshoots the hair spring when velocity reverses", () => {
+  it("eases a turn instead of mirroring in one frame", () => {
     const look = createLook(0, 0, 1);
     let x = 0;
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 20; i++) {
       x += 4;
       stepLook(look, sample(x, { vx: 280, facing: 1 }), 1 / 60);
     }
-    const trailingLeft = look.hair;
-    expect(trailingLeft).toBeLessThan(-40);
+    expect(look.face).toBeGreaterThan(0.9);
 
-    let peak = look.hair;
-    for (let i = 0; i < 50; i++) {
+    const faces: number[] = [];
+    const footX: number[] = [];
+    for (let i = 0; i < 14; i++) {
       x -= 4;
       const frame = stepLook(look, sample(x, { vx: -280, facing: -1 }), 1 / 60);
-      peak = Math.max(peak, frame.spikes[2].angle);
+      faces.push(look.face);
+      footX.push(frame.legs[0].cx);
     }
-    expect(peak).toBeGreaterThan(70);
+
+    expect(faces[0]).toBeGreaterThan(0.7);
+    expect(faces.some((face) => Math.abs(face) < 0.35)).toBe(true);
+    expect(faces[faces.length - 1]).toBeLessThan(-0.85);
+    let maxStep = 0;
+    for (let i = 1; i < faces.length; i++) {
+      maxStep = Math.max(maxStep, Math.abs(faces[i] - faces[i - 1]));
+    }
+    expect(maxStep).toBeLessThan(0.4);
+    let maxFoot = 0;
+    for (let i = 1; i < footX.length; i++) {
+      maxFoot = Math.max(maxFoot, Math.abs(footX[i] - footX[i - 1]));
+    }
+    expect(maxFoot).toBeLessThan(8);
+  });
+
+  it("keeps hair in world space and overshoots a reversal", () => {
+    const look = createLook(0, 0, 1);
+    let x = 0;
+    let prevHair = look.hair;
+    let maxStep = 0;
+    for (let i = 0; i < 90; i++) {
+      x += 4;
+      stepLook(look, sample(x, { vx: 280, facing: 1 }), 1 / 60);
+      maxStep = Math.max(maxStep, Math.abs(look.hair - prevHair));
+      prevHair = look.hair;
+    }
+    expect(look.hair).toBeLessThan(-40);
+
+    let peak = look.hair;
+    for (let i = 0; i < 80; i++) {
+      x -= 4;
+      stepLook(look, sample(x, { vx: -280, facing: -1 }), 1 / 60);
+      maxStep = Math.max(maxStep, Math.abs(look.hair - prevHair));
+      prevHair = look.hair;
+      peak = Math.max(peak, look.hair);
+    }
+    expect(maxStep).toBeLessThan(20);
     expect(look.hair).toBeGreaterThan(20);
+    expect(peak).toBeGreaterThan(look.hair + 8);
+
+    for (let i = 0; i < 90; i++) {
+      stepLook(look, sample(x, { vx: 0, facing: -1 }), 1 / 60);
+    }
+    expect(Math.abs(look.hair)).toBeLessThan(18);
+  });
+
+  it("crouches, extends, reaches, and compresses through a jump", () => {
+    const look = createLook(0, 0, 1);
+    let x = 40;
+    for (let i = 0; i < 24; i++) {
+      x += 4;
+      stepLook(look, sample(x, { vx: 280, onGround: true, vy: 0 }), 1 / 60);
+    }
+
+    const legLen = (index: number, frame: ReturnType<typeof stepLook>) => {
+      const leg = frame.legs[index];
+      return Math.hypot(leg.cx - leg.ax, leg.cy - leg.ay);
+    };
+    const frames: ReturnType<typeof stepLook>[] = [];
+    let y = 0;
+    let vy = -680;
+    for (let i = 0; i < 34; i++) {
+      y += vy / 60;
+      frames.push(
+        stepLook(
+          look,
+          sample(x, { x, y, vx: 40, vy, onGround: false, facing: 1 }),
+          1 / 60,
+        ),
+      );
+      vy += 2800 / 60;
+    }
+
+    const lengthAt = (index: number) =>
+      (legLen(0, frames[index]) + legLen(1, frames[index])) / 2;
+    const early = Math.min(lengthAt(3), lengthAt(4), lengthAt(5));
+    const ascent = Math.max(lengthAt(10), lengthAt(11), lengthAt(12));
+    expect(ascent).toBeGreaterThan(early + 1.5);
+
+    const footY = (index: number) =>
+      (frames[index].legs[0].cy + frames[index].legs[1].cy) / 2;
+    const apex = frames.reduce(
+      (best, _, index) =>
+        Math.abs(-680 + index * (2800 / 60)) <
+        Math.abs(-680 + best * (2800 / 60))
+          ? index
+          : best,
+      0,
+    );
+    const late = frames.length - 1;
+    expect(footY(late)).toBeGreaterThan(footY(apex) + 2);
+
+    const landed = stepLook(
+      look,
+      sample(x, { x, y: 0, vx: 180, vy: 0, onGround: true, facing: 1 }),
+      1 / 60,
+    );
+    expect(landed.compress).toBeGreaterThan(0.7);
+    let recovered = landed;
+    for (let i = 0; i < 16; i++) {
+      x += 3;
+      recovered = stepLook(
+        look,
+        sample(x, { x, y: 0, vx: 180, vy: 0, onGround: true, facing: 1 }),
+        1 / 60,
+      );
+    }
+    expect(recovered.compress).toBeLessThan(0.15);
   });
 
   it("cycles a climb without a joint pop", () => {

@@ -3,18 +3,26 @@ import type { Body } from "./physics";
 /** Fixed physics step. Rendering interpolates the leftover fraction. */
 export const PHYSICS_DT = 1 / 120;
 
-const STRIDE = 40;
+/** World distance for one full stride (both feet). */
+export const STRIDE = 70;
+
 const CLIMB_STRIDE = 26;
-const HIP_Y = 26.4;
+const HIP_Y = 28.4;
 const SHOULDER_Y = 15.4;
 const HEAD_Y = 8.3;
 const GROUND_Y = 42.3;
-const THIGH = 9.4;
-const SHIN = 8.6;
-const UPPER_ARM = 6.4;
-const FOREARM = 5.6;
-const FOOT = 3.3;
+const THIGH = 11.6;
+const SHIN = 11.0;
+const UPPER_ARM = 6.6;
+const FOREARM = 5.8;
+const FOOT = 3.5;
 const CX = 13;
+const TURN_TIME = 0.18;
+const STANCE_A = 0.06;
+const STANCE_B = 0.44;
+/** Ankle, in facing-forward units, at contact and at toe-off. */
+const CONTACT_X = 11;
+const TOEOFF_X = CONTACT_X - (STANCE_B - STANCE_A) * STRIDE;
 
 const SPIKES = [
   { rest: -36, len: 7.2, w: 2.3 },
@@ -44,20 +52,18 @@ type Plant = {
   held: boolean;
   worldX: number;
   blend: number;
-  hip: number;
-  knee: number;
-  ankle: number;
 };
 
 export type Look = {
   phase: number;
   climbPhase: number;
+  /** Eased facing, -1..1. This is not applied as an SVG mirror. */
   face: number;
-  faceVel: number;
+  turnFrom: number;
+  turnTo: number;
+  turnU: number;
   weights: Record<Mode, number>;
   compress: number;
-  compressVel: number;
-  ant: number;
   hair: number;
   hairVel: number;
   spike: number[];
@@ -67,6 +73,12 @@ export type Look = {
   visualX: number;
   visualY: number;
   time: number;
+  prevVx: number;
+  vxReady: boolean;
+  airTime: number;
+  landAge: number;
+  recover: number;
+  prevLegs: [Chain, Chain] | null;
 };
 
 export type Chain = {
@@ -81,7 +93,6 @@ export type Chain = {
 };
 
 export type FramePose = {
-  scaleX: number;
   bob: number;
   lean: number;
   compress: number;
@@ -133,9 +144,6 @@ const emptyPlant = (): Plant => ({
   held: false,
   worldX: 0,
   blend: 0,
-  hip: 0,
-  knee: 0.2,
-  ankle: 0.3,
 });
 
 export function createLook(x: number, y: number, facing: 1 | -1 = 1): Look {
@@ -143,20 +151,26 @@ export function createLook(x: number, y: number, facing: 1 | -1 = 1): Look {
     phase: 0,
     climbPhase: 0,
     face: facing,
-    faceVel: 0,
+    turnFrom: facing,
+    turnTo: facing,
+    turnU: 1,
     weights: { idle: 1, run: 0, jump: 0, fall: 0, climb: 0 },
     compress: 0,
-    compressVel: 0,
-    ant: 0,
-    hair: -facing * 14,
+    hair: 0,
     hairVel: 0,
-    spike: SPIKES.map((spike) => -facing * 14 + spike.rest),
+    spike: SPIKES.map((spike) => spike.rest),
     spikeVel: SPIKES.map(() => 0),
     plants: [emptyPlant(), emptyPlant()],
     airborne: false,
     visualX: x,
     visualY: y,
     time: 0,
+    prevVx: 0,
+    vxReady: false,
+    airTime: 0,
+    landAge: -1,
+    recover: 0,
+    prevLegs: null,
   };
 }
 
@@ -184,7 +198,7 @@ export function legCycle(u: number): Limb & { stance: boolean } {
       hip: lerp(CONTACT.hip, TOEOFF.hip, s),
       knee: lerp(CONTACT.knee, TOEOFF.knee, s),
       ankle: lerp(CONTACT.ankle, TOEOFF.ankle, s),
-      stance: t > 0.07 && t < 0.43,
+      stance: t >= STANCE_A && t < STANCE_B,
     };
   }
   const s = (t - 0.5) / 0.5;
@@ -192,8 +206,8 @@ export function legCycle(u: number): Limb & { stance: boolean } {
   const lift = Math.sin(s * Math.PI) ** 2;
   return {
     hip: lerp(TOEOFF.hip, CONTACT.hip, e),
-    knee: lerp(TOEOFF.knee, CONTACT.knee, e) + lift * 1.15,
-    ankle: lerp(TOEOFF.ankle, CONTACT.ankle, e) + lift * 0.25,
+    knee: lerp(TOEOFF.knee, CONTACT.knee, e) + lift * 0.9,
+    ankle: lerp(TOEOFF.ankle, CONTACT.ankle, e) + lift * 0.2,
     stance: false,
   };
 }
@@ -229,15 +243,12 @@ function idleAngles(time: number): Angles {
   const sway = Math.sin(time * 2.2) * 0.05;
   return {
     lean: 1.5 + Math.sin(time * 2.2) * 1.2,
-    bob: Math.sin(time * 2.4) * 0.45,
+    bob: Math.sin(time * 2.4) * 0.4,
     hipX: CX,
     shoulderX: CX,
     headX: CX,
-    headY: HEAD_Y + Math.sin(time * 2.4) * 0.25,
-    legs: [
-      { hip: 0.14 + sway, knee: 0.14, ankle: 0.35 },
-      { hip: -0.1 - sway, knee: 0.12, ankle: 0.3 },
-    ],
+    headY: HEAD_Y + Math.sin(time * 2.4) * 0.2,
+    legs: [limbTo(2.2 + sway, GROUND_Y), limbTo(-1.6 - sway, GROUND_Y)],
     arms: [
       { hip: -0.16 + sway, knee: 0.16, ankle: 0 },
       { hip: 0.18 - sway, knee: 0.14, ankle: 0 },
@@ -248,59 +259,117 @@ function idleAngles(time: number): Angles {
 function runAngles(phase: number, speed: number): Angles {
   const rock = Math.sin(phase * Math.PI * 4) * speed;
   return {
-    lean: 7 + speed * 7 + Math.sin(phase * Math.PI * 2) * 2.4 * speed,
-    bob: Math.cos(phase * Math.PI * 4) * 1.7 * speed,
-    hipX: CX + rock * 1.15,
-    shoulderX: CX - rock * 0.85,
-    headX: CX - rock * 0.35,
-    headY: HEAD_Y + Math.cos((phase - 0.05) * Math.PI * 4) * 0.85 * speed,
+    lean: 8 + speed * 6 + Math.sin(phase * Math.PI * 2) * 1.6 * speed,
+    bob: Math.cos(phase * Math.PI * 4) * 1.15 * speed,
+    hipX: CX + rock * 0.8,
+    shoulderX: CX - rock * 0.7,
+    headX: CX - rock * 0.25,
+    headY: HEAD_Y + Math.cos((phase - 0.05) * Math.PI * 4) * 0.55 * speed,
     legs: [legCycle(phase), legCycle(phase + 0.5)],
     arms: [armCycle(phase), armCycle(phase + 0.5)],
   };
 }
 
-function airAngles(vy: number): Angles {
-  const rise = clamp(-vy / 680, 0, 1);
-  const drop = clamp(vy / 920, 0, 1);
-  const tuck = rise * 0.85 + (1 - drop) * 0.15;
+function poseOf(
+  lean: number,
+  bob: number,
+  legs: [Limb, Limb],
+  arms: [Limb, Limb],
+  headY = HEAD_Y,
+): Angles {
   return {
-    lean: lerp(8, -12, rise) + drop * 4,
-    bob: -rise * 1.2 + drop * 0.6,
+    lean,
+    bob,
     hipX: CX,
     shoulderX: CX,
     headX: CX,
-    headY: HEAD_Y - rise * 0.4,
-    legs: [
-      {
-        hip: lerp(0.2, 0.72, tuck) - drop * 0.15,
-        knee: lerp(0.28, 0.95, tuck),
-        ankle: 0.35,
-      },
-      {
-        hip: lerp(-0.12, -0.28, tuck) - drop * 0.2,
-        knee: lerp(0.32, 1.05, tuck),
-        ankle: 0.2,
-      },
-    ],
-    arms: [
-      {
-        hip: lerp(0.4, 2.25, rise) + drop * 0.2,
-        knee: 0.22,
-        ankle: 0,
-      },
-      {
-        hip: lerp(-0.2, 1.9, rise),
-        knee: 0.28,
-        ankle: 0,
-      },
-    ],
+    headY,
+    legs,
+    arms,
   };
+}
+
+/** Continuous flight: crouch, extend, apex, fall, then a downward reach. */
+function flightAngles(airTime: number, vy: number): Angles {
+  const crouch = poseOf(
+    14,
+    2.4,
+    [limbTo(1.1, HIP_Y + 5.1), limbTo(-0.8, HIP_Y + 5.4)],
+    [
+      { hip: -0.65, knee: 0.45, ankle: 0 },
+      { hip: -0.3, knee: 0.4, ankle: 0 },
+    ],
+    HEAD_Y + 1.1,
+  );
+  const extend = poseOf(
+    -8,
+    -1.6,
+    [limbTo(-11, GROUND_Y - 0.8), limbTo(7, GROUND_Y - 1.4)],
+    [
+      { hip: 2.2, knee: 0.16, ankle: 0 },
+      { hip: 1.85, knee: 0.22, ankle: 0 },
+    ],
+    HEAD_Y - 0.4,
+  );
+  const apex = poseOf(
+    1,
+    -0.3,
+    [limbTo(3.2, HIP_Y + 6.2), limbTo(-1.4, HIP_Y + 6.6)],
+    [
+      { hip: 1.65, knee: 0.4, ankle: 0 },
+      { hip: 2.05, knee: 0.28, ankle: 0 },
+    ],
+  );
+  const fall = poseOf(
+    11,
+    0.3,
+    [limbTo(6, GROUND_Y - 6), limbTo(-7, GROUND_Y - 5)],
+    [
+      { hip: 2.15, knee: 0.22, ankle: 0 },
+      { hip: 1.55, knee: 0.48, ankle: 0 },
+    ],
+  );
+  const reach = poseOf(
+    5,
+    0.8,
+    [limbTo(9, GROUND_Y - 0.6), limbTo(2.2, GROUND_Y - 1.2)],
+    [
+      { hip: 0.85, knee: 0.32, ankle: 0 },
+      { hip: 0.35, knee: 0.42, ankle: 0 },
+    ],
+  );
+
+  const tuck = clamp(1 - Math.max(0, airTime - 0.02) / 0.1, 0, 1);
+  const rising = clamp(-vy / 220, 0, 1);
+  const extendW =
+    smooth(clamp((airTime - 0.11) / 0.1, 0, 1)) * rising * (1 - tuck);
+  const apexW =
+    clamp(1 - Math.abs(vy) / 150, 0, 1) *
+    smooth(clamp((airTime - 0.16) / 0.1, 0, 1));
+  const fallW = smooth(clamp((vy + 40) / 320, 0, 1));
+  const reachW = smooth(clamp((vy - 180) / 320, 0, 1));
+  const raw = [
+    tuck * (1 - extendW),
+    extendW * (1 - apexW) * (1 - fallW),
+    apexW * (1 - reachW),
+    fallW * (1 - reachW) * (1 - apexW),
+    reachW,
+  ];
+  let sum = raw.reduce((total, value) => total + value, 0);
+  if (sum < 1e-4) {
+    raw[2] = 1;
+    sum = 1;
+  }
+  return blendList(
+    [crouch, extend, apex, fall, reach],
+    raw.map((value) => value / sum),
+  );
 }
 
 function climbAngles(phase: number, up: boolean): Angles {
   return {
     lean: up ? 16 : 8,
-    bob: Math.sin(phase * Math.PI * 4) * 0.45,
+    bob: Math.sin(phase * Math.PI * 4) * 0.35,
     hipX: CX + 3.2,
     shoulderX: CX + 3.6,
     headX: CX + 2.4,
@@ -310,10 +379,7 @@ function climbAngles(phase: number, up: boolean): Angles {
   };
 }
 
-function blendAngles(
-  parts: Record<Mode, Angles>,
-  weights: Record<Mode, number>,
-): Angles {
+function blendList(sources: Angles[], weights: number[]): Angles {
   const acc: Angles = {
     lean: 0,
     bob: 0,
@@ -330,12 +396,11 @@ function blendAngles(
       { hip: 0, knee: 0, ankle: 0 },
     ],
   };
-  for (const mode of MODES) {
-    const w = weights[mode];
+  sources.forEach((src, index) => {
+    const w = weights[index];
     if (w < 1e-4) {
-      continue;
+      return;
     }
-    const src = parts[mode];
     acc.lean += src.lean * w;
     acc.bob += src.bob * w;
     acc.hipX += src.hipX * w;
@@ -350,8 +415,18 @@ function blendAngles(
       acc.arms[i].knee += src.arms[i].knee * w;
       acc.arms[i].ankle += src.arms[i].ankle * w;
     }
-  }
+  });
   return acc;
+}
+
+function blendAngles(
+  parts: Record<Mode, Angles>,
+  weights: Record<Mode, number>,
+): Angles {
+  return blendList(
+    MODES.map((mode) => parts[mode]),
+    MODES.map((mode) => weights[mode]),
+  );
 }
 
 function buildChain(
@@ -401,18 +476,32 @@ function solveLeg(hipX: number, targetX: number, targetY: number) {
       1,
     ),
   );
-  const thigh = aim + hipOff;
-  const knee =
-    Math.PI -
-    Math.acos(
-      clamp(
-        (THIGH * THIGH + SHIN * SHIN - dist * dist) / (2 * THIGH * SHIN),
-        -1,
-        1,
-      ),
-    );
-  const shin = thigh - knee;
-  return { hip: thigh, knee, ankle: 1.15 - shin };
+  const bend = Math.acos(
+    clamp(
+      (THIGH * THIGH + SHIN * SHIN - dist * dist) / (2 * THIGH * SHIN),
+      -1,
+      1,
+    ),
+  );
+  // Two bends reach the same ankle. Keep the knee above the other one.
+  const options = [1, -1].map((sign) => {
+    const thigh = aim + sign * hipOff;
+    const knee = sign * (Math.PI - bend);
+    return {
+      hip: thigh,
+      knee,
+      shin: thigh - knee,
+      kneeY: HIP_Y + Math.cos(thigh) * THIGH,
+    };
+  });
+  options.sort((a, b) => a.kneeY - b.kneeY);
+  return options[0];
+}
+
+function limbTo(offsetX: number, targetY: number): Limb {
+  const ik = solveLeg(CX, CX + offsetX, targetY);
+  const toeAng = Math.atan2(Math.sign(offsetX || 1), 0.45);
+  return { hip: ik.hip, knee: ik.knee, ankle: toeAng - ik.shin };
 }
 
 function rotateDeg(x: number, y: number, ox: number, oy: number, deg: number) {
@@ -424,19 +513,168 @@ function rotateDeg(x: number, y: number, ox: number, oy: number, deg: number) {
   return { x: ox + dx * c - dy * s, y: oy + dx * s + dy * c };
 }
 
-function toScreen(
-  x: number,
-  y: number,
-  scaleX: number,
-  lean: number,
-  compress: number,
+function leanChain(chain: Chain, hipX: number, deg: number): Chain {
+  const turn = (x: number, y: number) => rotateDeg(x, y, hipX, HIP_Y, deg);
+  const a = turn(chain.ax, chain.ay);
+  const b = turn(chain.bx, chain.by);
+  const c = turn(chain.cx, chain.cy);
+  const d = turn(chain.dx, chain.dy);
+  return {
+    ax: a.x,
+    ay: a.y,
+    bx: b.x,
+    by: b.y,
+    cx: c.x,
+    cy: c.y,
+    dx: d.x,
+    dy: d.y,
+  };
+}
+
+function mirrorLimb(limb: Limb, face: number): Limb {
+  return {
+    hip: limb.hip * face,
+    knee: limb.knee * face,
+    ankle: limb.ankle * face,
+  };
+}
+
+function posedLegs(src: Angles, face: number, hipX: number): [Chain, Chain] {
+  return [0, 1].map((index) =>
+    buildChain(
+      hipX,
+      HIP_Y,
+      mirrorLimb(src.legs[index], face),
+      THIGH,
+      SHIN,
+      FOOT,
+    ),
+  ) as [Chain, Chain];
+}
+
+function footLocal(u: number) {
+  const t = wrap(u);
+  if (t >= STANCE_A && t < STANCE_B) {
+    const st = (t - STANCE_A) / (STANCE_B - STANCE_A);
+    const roll = st > 0.72 ? smooth((st - 0.72) / 0.28) : 0;
+    return {
+      x: lerp(CONTACT_X, TOEOFF_X, st),
+      lift: 0,
+      roll,
+      stance: true,
+    };
+  }
+  const p = t >= STANCE_B ? t - STANCE_B : t + (1 - STANCE_B);
+  const span = STANCE_A + (1 - STANCE_B);
+  const s = clamp(p / span, 0, 1);
+  return {
+    x: lerp(TOEOFF_X, CONTACT_X, smooth(s)),
+    lift: Math.sin(s * Math.PI) * 8,
+    roll: 0,
+    stance: false,
+  };
+}
+
+function chainFromAnkle(
+  hipX: number,
+  ankleX: number,
+  ankleY: number,
+  roll: number,
+  forward: number,
+): Chain {
+  const ik = solveLeg(hipX, ankleX, ankleY);
+  const dir = forward >= 0 ? 1 : -1;
+  const flat = Math.atan2(dir, 0.2);
+  const pitched = Math.atan2(dir * 0.35, 0.95);
+  const toeAng = lerp(flat, pitched, roll);
+  return buildChain(
+    hipX,
+    HIP_Y,
+    { hip: ik.hip, knee: ik.knee, ankle: toeAng - ik.shin },
+    THIGH,
+    SHIN,
+    FOOT,
+  );
+}
+
+function strideLegs(
+  phase: number,
+  hipX: number,
+  face: number,
   bob: number,
-) {
-  let p = rotateDeg(x, y, CX, GROUND_Y, lean);
-  p = { x: CX + scaleX * (p.x - CX), y: p.y };
-  const sy = 1 - clamp(compress, -0.35, 1.2) * 0.16;
-  p = { x: p.x, y: GROUND_Y + sy * (p.y - GROUND_Y) };
-  return { x: p.x, y: p.y + bob };
+  sample: LookSample,
+  plants: [Plant, Plant],
+  lock: boolean,
+  dt: number,
+): [Chain, Chain] {
+  const built: Chain[] = [];
+  for (let index = 0; index < 2; index++) {
+    const local = footLocal(phase + index * 0.5);
+    const plant = plants[index];
+    const other = plants[1 - index];
+    const hipAnkle = hipX + local.x * face;
+    const ankleY = GROUND_Y - bob - local.lift;
+    let ankleX = hipAnkle;
+    const canLock =
+      lock && local.stance && !other.held && Math.abs(face) > 0.84;
+    if (canLock) {
+      if (!plant.held) {
+        plant.held = true;
+        plant.worldX = sample.x + hipAnkle;
+      }
+      const lockedX = plant.worldX - sample.x;
+      if (Math.abs(lockedX - hipX) > 16.8) {
+        plant.held = false;
+        plant.blend = Math.max(0, plant.blend - dt / 0.04);
+        ankleX = lerp(hipAnkle, lockedX, plant.blend);
+      } else {
+        plant.blend = 1;
+        ankleX = lockedX;
+      }
+    } else {
+      const lockedX = plant.worldX - sample.x;
+      plant.held = false;
+      plant.blend = Math.max(0, plant.blend - dt / 0.05);
+      ankleX =
+        plant.blend > 0 ? lerp(hipAnkle, lockedX, plant.blend) : hipAnkle;
+    }
+    built.push(chainFromAnkle(hipX, ankleX, ankleY, local.roll, face));
+  }
+  return built as [Chain, Chain];
+}
+
+function idleLegs(face: number, hipX: number, bob: number): [Chain, Chain] {
+  return [2.2, -1.6].map((offset) => {
+    const ankleX = hipX + offset * face;
+    const ankleY = GROUND_Y - bob;
+    return chainFromAnkle(hipX, ankleX, ankleY, 0, face || 1);
+  }) as [Chain, Chain];
+}
+
+function mixChain(a: Chain, b: Chain, t: number): Chain {
+  const m = (from: number, to: number) => lerp(from, to, t);
+  return {
+    ax: m(a.ax, b.ax),
+    ay: m(a.ay, b.ay),
+    bx: m(a.bx, b.bx),
+    by: m(a.by, b.by),
+    cx: m(a.cx, b.cx),
+    cy: m(a.cy, b.cy),
+    dx: m(a.dx, b.dx),
+    dy: m(a.dy, b.dy),
+  };
+}
+
+function mixPair(
+  a: [Chain, Chain],
+  b: [Chain, Chain],
+  t: number,
+): [Chain, Chain] {
+  return [mixChain(a[0], b[0], t), mixChain(a[1], b[1], t)];
+}
+
+function cloneChain(chain: Chain): Chain {
+  return { ...chain };
 }
 
 function modeOf(sample: LookSample): Mode {
@@ -465,9 +703,14 @@ function spring(
   return { value: value + nextVel * dt, vel: nextVel };
 }
 
+function place(x: number, y: number, compress: number, bob: number) {
+  const sy = 1 - clamp(compress, -0.35, 1.2) * 0.16;
+  return { x, y: GROUND_Y + sy * (y - GROUND_Y) + bob };
+}
+
 /**
  * Advance the drawable pose by one rendered frame.
- * Physics x/y are already interpolated; gait phase follows that distance.
+ * Facing eases through a turn; hair is a world-space spring and is not mirrored.
  */
 export function stepLook(
   look: Look,
@@ -494,181 +737,206 @@ export function stepLook(
     look.weights[key] += (target - look.weights[key]) * blend;
   }
 
-  const turned = spring(look.face, look.faceVel, sample.facing, 360, 24, step);
-  look.face = turned.value;
-  look.faceVel = turned.vel;
-  // Keep a little width through the zero crossing so the turn doesn't vanish.
-  const scaleX =
-    (look.face >= 0 ? 1 : -1) * clamp(Math.abs(look.face), 0.42, 1.08);
+  // Crossfade facing over ~180ms. Limb targets use this scalar; nothing flips scaleX.
+  if (sample.facing !== look.turnTo) {
+    look.turnFrom = look.face;
+    look.turnTo = sample.facing;
+    look.turnU = 0;
+  }
+  if (look.turnU < 1) {
+    look.turnU = Math.min(1, look.turnU + step / TURN_TIME);
+    look.face = lerp(look.turnFrom, look.turnTo, smooth(look.turnU));
+  } else {
+    look.face = look.turnTo;
+  }
+  const turnLean =
+    look.turnU < 1 ? Math.sin(look.turnU * Math.PI) * 42 * look.turnTo : 0;
 
-  if (look.airborne && sample.onGround) {
-    look.compressVel = 8.2;
+  if (sample.climbing) {
+    look.airTime = 0.4;
+    look.landAge = -1;
+  } else if (!sample.onGround) {
+    look.airTime += step;
+    look.landAge = -1;
+  } else {
+    if (look.airborne) {
+      look.landAge = 0;
+    }
+    if (look.landAge >= 0) {
+      look.landAge += step;
+    }
+    look.airTime = 0;
   }
-  if (!look.airborne && !sample.onGround && sample.vy < -120) {
-    look.ant = 1;
-  }
-  look.ant = Math.max(0, look.ant - step / 0.11);
-  const landed = spring(look.compress, look.compressVel, 0, 78, 11, step);
-  look.compress = landed.value;
-  look.compressVel = landed.vel;
+  const landEnv =
+    look.landAge >= 0 && look.landAge < 0.18
+      ? Math.cos(clamp(look.landAge / 0.18, 0, 1) * (Math.PI / 2))
+      : 0;
+  const antIn = smooth(clamp(look.airTime / 0.08, 0, 1));
+  const antOut = clamp(1 - Math.max(0, look.airTime - 0.06) / 0.12, 0, 1);
+  const ant = !sample.onGround && !sample.climbing ? antIn * antOut : 0;
 
   const speed = clamp(Math.abs(sample.vx) / 280, 0, 1);
   const parts: Record<Mode, Angles> = {
     idle: idleAngles(look.time),
     run: runAngles(look.phase, Math.max(speed, 0.35)),
-    jump: airAngles(sample.vy),
-    fall: airAngles(sample.vy),
+    jump: flightAngles(look.airTime, sample.vy),
+    fall: flightAngles(look.airTime, sample.vy),
     climb: climbAngles(look.climbPhase, sample.vy <= 0),
   };
   const angles = blendAngles(parts, look.weights);
-  const crouch = look.ant * look.ant;
-  angles.bob +=
-    crouch * 2.6 +
-    Math.max(0, look.compress) * 2.2 +
-    Math.min(0, look.compress) * 1.1;
-  angles.lean += crouch * 5;
-  for (const leg of angles.legs) {
-    leg.knee += crouch * 0.5 + Math.max(0, look.compress) * 0.38;
-  }
+  angles.bob += ant * 3.6 + landEnv * 4.8;
+  angles.lean = clamp(angles.lean + turnLean + ant * 7, -50, 50);
+  look.compress = landEnv * 0.95 + ant * 0.22;
 
-  const aligned =
-    Math.sign(scaleX) === sample.facing && Math.abs(look.face) > 0.82;
-  const scale = scaleX;
-  const maxReach = Math.sqrt(
-    Math.max(0, (THIGH + SHIN) ** 2 - (GROUND_Y - HIP_Y) ** 2),
-  );
+  const face = look.face;
+  const hipX = CX + face * (angles.hipX - CX);
+  const shoulderX = CX + face * (angles.shoulderX - CX);
+  const headX = CX + face * (angles.headX - CX);
+  const lockStride =
+    sample.onGround &&
+    !sample.climbing &&
+    look.weights.run > 0.92 &&
+    Math.abs(face) > 0.84 &&
+    look.turnU >= 1;
 
-  const legs: [Chain, Chain] = [0, 1].map((index) => {
-    const limb = angles.legs[index];
-    const cycle = legCycle(look.phase + index * 0.5);
-    const plant = look.plants[index];
-    const animated = buildChain(angles.hipX, HIP_Y, limb, THIGH, SHIN, FOOT);
-    const want =
-      cycle.stance &&
-      sample.onGround &&
-      look.weights.run > 0.6 &&
-      aligned &&
-      !sample.climbing;
-
-    if (want && !plant.held) {
-      const offset = animated.cx - angles.hipX;
-      if (Math.abs(offset) < maxReach - 0.2) {
-        plant.held = true;
-        plant.worldX = sample.x + CX + scale * (animated.cx - CX);
-      }
+  const groundTarget = (): [Chain, Chain] => {
+    const stride = strideLegs(
+      look.phase,
+      hipX,
+      face,
+      angles.bob,
+      sample,
+      look.plants,
+      lockStride,
+      step,
+    );
+    if (lockStride) {
+      return stride;
     }
+    const idle = idleLegs(face, hipX, angles.bob);
+    const w = clamp(look.weights.run / 0.92, 0, 1);
+    return mixPair(idle, stride, w);
+  };
 
-    if (plant.held) {
-      const localX = CX + (plant.worldX - sample.x - CX) / scale;
-      const offset = localX - angles.hipX;
-      if (!want || Math.abs(offset) > maxReach + 0.15) {
-        plant.held = false;
-      } else {
-        const ik = solveLeg(angles.hipX, localX, GROUND_Y);
-        plant.hip = ik.hip;
-        plant.knee = ik.knee;
-        plant.ankle = ik.ankle;
-        plant.blend = Math.min(1, plant.blend + step / 0.02);
-      }
+  let legs: [Chain, Chain];
+  if (sample.climbing) {
+    legs = posedLegs(angles, face, hipX);
+    look.recover = 0;
+    for (const plant of look.plants) {
+      plant.held = false;
+      plant.blend = 0;
+    }
+  } else if (!sample.onGround || look.recover > 0) {
+    const flight = flightAngles(look.airTime, sample.vy);
+    const target = !sample.onGround
+      ? posedLegs(flight, face, hipX)
+      : groundTarget();
+    const follow = 1 - Math.exp(-step / 0.04);
+    legs = look.prevLegs ? mixPair(look.prevLegs, target, follow) : target;
+    if (sample.onGround) {
+      look.recover = Math.max(0, look.recover - step / 0.22);
     } else {
-      plant.blend = Math.max(0, plant.blend - step / 0.04);
+      look.recover = 1;
+      for (const plant of look.plants) {
+        plant.held = false;
+      }
     }
+  } else {
+    legs = groundTarget();
+  }
+  look.prevLegs = [cloneChain(legs[0]), cloneChain(legs[1])];
 
-    if (plant.blend < 0.02) {
-      return animated;
-    }
-    const mixed: Limb = {
-      hip: lerp(limb.hip, plant.hip, plant.blend),
-      knee: lerp(limb.knee, plant.knee, plant.blend),
-      ankle: lerp(limb.ankle, plant.ankle, plant.blend),
-    };
-    return buildChain(angles.hipX, HIP_Y, mixed, THIGH, SHIN, FOOT);
-  }) as [Chain, Chain];
-
-  const arms: [Chain, Chain] = [0, 1].map((index) =>
-    buildChain(
-      angles.shoulderX,
+  const arms = [0, 1].map((index) => {
+    const chain = buildChain(
+      shoulderX,
       SHOULDER_Y,
-      angles.arms[index],
+      mirrorLimb(angles.arms[index], face),
       UPPER_ARM,
       FOREARM,
       0,
-    ),
-  ) as [Chain, Chain];
+    );
+    return leanChain(chain, hipX, angles.lean);
+  }) as [Chain, Chain];
 
-  const hairTarget =
-    Math.abs(sample.vx) < 12
-      ? -sample.facing * 12
-      : -Math.sign(sample.vx) * (26 + speed * 50);
-  const hair = spring(look.hair, look.hairVel, hairTarget, 86, 10, step);
+  const head = rotateDeg(headX, angles.headY, hipX, HIP_Y, angles.lean);
+  const eye = rotateDeg(
+    headX + face * 1.45,
+    angles.headY - 0.2,
+    hipX,
+    HIP_Y,
+    angles.lean,
+  );
+  const shoulder = rotateDeg(shoulderX, SHOULDER_Y, hipX, HIP_Y, angles.lean);
+
+  let ax = 0;
+  if (look.vxReady) {
+    ax = (sample.vx - look.prevVx) / Math.max(step, 1 / 240);
+  } else {
+    look.vxReady = true;
+  }
+  look.prevVx = sample.vx;
+  // Opposite velocity, plus a kick from acceleration so a reversal overshoots.
+  const hairTarget = clamp(
+    (-sample.vx / 280) * 62 + (-ax / 2800) * 28,
+    -78,
+    78,
+  );
+  const hair = spring(look.hair, look.hairVel, hairTarget, 42, 6.5, step);
   look.hair = hair.value;
   look.hairVel = hair.vel;
 
   const spikes = SPIKES.map((spike, index) => {
-    const follow = 0.7 + (spike.len / 10.2) * 0.48;
-    const flutter =
-      Math.sin(look.time * 13 + index * 0.8) * (1.4 + speed * 3.5);
+    const follow = 0.72 + (spike.len / 10.2) * 0.5;
+    const flutter = Math.sin(look.time * 11 + index) * (0.8 + speed * 2.2);
     const target =
-      spike.rest * (1 - speed * 0.6) + look.hair * follow + flutter;
+      spike.rest * (1 - speed * 0.55) + look.hair * follow + flutter;
     const next = spring(
       look.spike[index],
       look.spikeVel[index],
       target,
-      42 - index * 3,
-      8,
+      26 - index * 2,
+      5.2,
       step,
     );
     look.spike[index] = next.value;
     look.spikeVel[index] = next.vel;
     return {
       angle: next.value,
-      len: spike.len * (1 + speed * 0.4),
+      len: spike.len * (1 + speed * 0.35),
       w: spike.w,
     };
   });
 
-  const hairPoint = toScreen(
-    angles.headX,
-    angles.headY - 4.2,
-    scale,
-    angles.lean,
+  const hairPoint = place(
+    rotateDeg(headX, angles.headY - 4.2, hipX, HIP_Y, angles.lean).x,
+    rotateDeg(headX, angles.headY - 4.2, hipX, HIP_Y, angles.lean).y,
     look.compress,
     angles.bob,
   );
 
-  const planted: [boolean, boolean] = [
-    look.plants[0].held,
-    look.plants[1].held,
-  ];
-  const footWorldX: [number, number] = [
-    sample.x + CX + scale * (legs[0].cx - CX),
-    sample.x + CX + scale * (legs[1].cx - CX),
-  ];
-
   look.visualX = sample.x;
   look.visualY = sample.y;
-  look.airborne = !sample.onGround;
+  look.airborne = !sample.onGround && !sample.climbing;
 
   return {
-    scaleX: scale,
     bob: angles.bob,
     lean: angles.lean,
     compress: look.compress,
-    hipX: angles.hipX,
+    hipX,
     hipY: HIP_Y,
-    shoulderX: angles.shoulderX,
-    shoulderY: SHOULDER_Y,
-    headX: angles.headX,
-    headY: angles.headY,
-    eyeX: angles.headX + 1.5,
-    eyeY: angles.headY - 0.15,
+    shoulderX: shoulder.x,
+    shoulderY: shoulder.y,
+    headX: head.x,
+    headY: head.y,
+    eyeX: eye.x,
+    eyeY: eye.y,
     legs,
     arms,
     hairX: hairPoint.x,
     hairY: hairPoint.y,
     spikes,
-    planted,
-    footWorldX,
+    planted: [look.plants[0].held, look.plants[1].held],
+    footWorldX: [sample.x + legs[0].cx, sample.x + legs[1].cx],
   };
 }
 
