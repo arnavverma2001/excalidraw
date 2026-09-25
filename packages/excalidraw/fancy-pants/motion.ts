@@ -917,7 +917,7 @@ export function stepLook(
   const dy = clamp(sample.y - look.visualY, -1200 * step, 1200 * step);
 
   if (sample.facing !== look.turnTo) {
-    look.skidFace = look.turnTo;
+    look.skidFace = look.turnTo < 0 ? -1 : 1;
     look.brakeFrom = look.prevStick ? cloneStick(look.prevStick) : null;
     look.turnFrom = look.face;
     look.turnTo = sample.facing;
