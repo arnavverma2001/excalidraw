@@ -9,6 +9,7 @@ import {
   useExcalidrawAPI,
 } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
+import { FancyPantsMode } from "@excalidraw/excalidraw/fancy-pants/FancyPantsMode";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import {
   CommandPalette,
@@ -375,6 +376,13 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [fancyPantsActive, setFancyPantsActive] = useState(false);
+  const toggleFancyPants = useCallback(() => {
+    setFancyPantsActive((active) => !active);
+  }, []);
+  const exitFancyPants = useCallback(() => {
+    setFancyPantsActive(false);
+  }, []);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -1015,7 +1023,18 @@ const ExcalidrawWrapper = () => {
             </OverwriteConfirmDialog.Action>
           )}
         </OverwriteConfirmDialog>
-        <AppFooter onChange={() => excalidrawAPI?.refresh()} />
+        <AppFooter
+          onChange={() => excalidrawAPI?.refresh()}
+          fancyPantsActive={fancyPantsActive}
+          onToggleFancyPants={toggleFancyPants}
+        />
+        {excalidrawAPI && (
+          <FancyPantsMode
+            active={fancyPantsActive}
+            excalidrawAPI={excalidrawAPI}
+            onExit={exitFancyPants}
+          />
+        )}
         {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
 
         <TTDDialogTrigger />

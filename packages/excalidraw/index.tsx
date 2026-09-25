@@ -358,6 +358,7 @@ export { Stats } from "./components/Stats";
 export { DefaultSidebar } from "./components/DefaultSidebar";
 export { TTDDialog } from "./components/TTDDialog/TTDDialog";
 export { TTDDialogTrigger } from "./components/TTDDialog/TTDDialogTrigger";
+export { FancyPantsMode } from "./fancy-pants/FancyPantsMode";
 export { TTDStreamFetch } from "./components/TTDDialog/utils/TTDStreamFetch";
 export type {
   TTDPersistenceAdapter,

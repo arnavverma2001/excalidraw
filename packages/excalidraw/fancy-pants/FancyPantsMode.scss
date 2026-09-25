@@ -1,0 +1,27 @@
+.excalidraw {
+  .fancy-pants-character {
+    position: fixed;
+    pointer-events: none;
+    z-index: 3;
+    overflow: visible;
+  }
+
+  .fancy-pants-hud {
+    position: fixed;
+    z-index: 130;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 18rem);
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--border-radius-lg);
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    border: 1px solid var(--default-border-color);
+    box-shadow: var(--shadow-island);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    pointer-events: none;
+    text-align: center;
+  }
+}
