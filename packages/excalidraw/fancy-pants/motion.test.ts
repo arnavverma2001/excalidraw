@@ -306,6 +306,12 @@ describe("fancy pants motion", () => {
     );
     const late = frames.length - 1;
     expect(footY(late)).toBeGreaterThan(footY(apex) + 2);
+    expect(Math.max(...frames.map((frame) => frame.shadowY))).toBeGreaterThan(
+      55,
+    );
+    expect(
+      Math.min(...frames.map((frame) => frame.shadowOpacity)),
+    ).toBeLessThan(0.12);
 
     const landing = [
       stepLook(

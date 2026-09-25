@@ -212,7 +212,12 @@ export const FancyPantsMode = ({
       } else {
         const follow = 1 - Math.exp(-dt * 7);
         cameraX += (target.scrollX - cameraX) * follow;
-        cameraY += (target.scrollY - cameraY) * follow;
+        if (current.onGround) {
+          cameraY += (target.scrollY - cameraY) * follow;
+        } else if (current.climbing) {
+          const climbFollow = 1 - Math.exp(-dt * 2.5);
+          cameraY += (target.scrollY - cameraY) * climbFollow;
+        }
       }
 
       excalidrawAPI.updateScene({

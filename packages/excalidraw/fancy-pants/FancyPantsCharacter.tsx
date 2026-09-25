@@ -38,7 +38,13 @@ export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
       aria-hidden="true"
       overflow="visible"
     >
-      <ellipse cx="13" cy="43" rx="6.5" ry="1.1" fill="rgba(0,0,0,0.16)" />
+      <ellipse
+        cx="13"
+        cy={pose.shadowY}
+        rx="6.5"
+        ry="1.1"
+        fill={`rgba(0,0,0,${pose.shadowOpacity})`}
+      />
       <g transform={`translate(0 ${pose.bob})`}>
         <g transform={`translate(13 42.3) scale(1 ${sy}) translate(-13 -42.3)`}>
           {pose.arms.map((chain, index) => (

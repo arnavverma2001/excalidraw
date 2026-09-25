@@ -120,6 +120,8 @@ export type FramePose = {
   compress: number;
   /** Scene pixels to hold the sprite on the ground during takeoff. */
   drop: number;
+  shadowY: number;
+  shadowOpacity: number;
   hipX: number;
   hipY: number;
   shoulderX: number;
@@ -1112,6 +1114,14 @@ export function stepLook(
 
   const sy = 1 - clamp(compress, -0.35, 1.2) * BODY_SQUASH;
   const hairY = GROUND_Y + sy * (target.headY - GROUND_Y);
+  const heightFromGround = Math.max(0, look.lastGroundY - sample.y - drop);
+  const shadowY =
+    GROUND_Y + heightFromGround / CHARACTER_RENDER_SCALE;
+  const shadowOpacity = sample.climbing
+    ? 0
+    : sample.onGround
+      ? 0.16
+      : 0.13 * (1 - clamp(heightFromGround / 140, 0, 0.8));
 
   look.prevStick = cloneStick(target);
   look.visualX = sample.x;
@@ -1123,6 +1133,8 @@ export function stepLook(
     lean: target.lean,
     compress,
     drop,
+    shadowY,
+    shadowOpacity,
     hipX: target.hipX,
     hipY: target.hipY,
     shoulderX: target.shoulderX,
