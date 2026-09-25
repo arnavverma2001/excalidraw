@@ -159,7 +159,6 @@ export const FancyPantsMode = ({
       last = now;
       const solids = solidsNow();
       const input = inputFromTokens(keys, jumpPressed);
-      jumpPressed = false;
       accumulator += dt;
       let jump = input.jumpPressed;
       while (accumulator >= PHYSICS_DT) {
@@ -170,6 +169,9 @@ export const FancyPantsMode = ({
           { ...input, jumpPressed: jump },
           PHYSICS_DT,
         );
+        if (jump) {
+          jumpPressed = false;
+        }
         jump = false;
         accumulator -= PHYSICS_DT;
       }
