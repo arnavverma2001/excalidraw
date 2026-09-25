@@ -16,7 +16,7 @@ export const STRIDE = 104;
 /** How hard a landing squashes the figure toward the feet. */
 export const BODY_SQUASH = 0.42;
 
-const CLIMB_STRIDE = 86;
+const CLIMB_STRIDE = 64;
 const HIP_Y = 28.4;
 const RUN_HIP_Y = 27.2;
 const SHOULDER_Y = 15.4;
