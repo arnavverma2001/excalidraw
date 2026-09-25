@@ -1,4 +1,3 @@
-import { sceneCoordsToViewportCoords } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/element";
 import { useEffect, useState } from "react";
 
@@ -10,6 +9,12 @@ import {
   isJumpToken,
 } from "./controls";
 import {
+  interpolatePosition,
+  lookFromBody,
+  PHYSICS_DT,
+  stepLook,
+} from "./motion";
+import {
   cameraScrollFor,
   shapesToSolids,
   spawnBody,
@@ -19,7 +24,20 @@ import {
 import "./FancyPantsMode.scss";
 
 import type { ExcalidrawImperativeAPI } from "../types";
-import type { Body, FancyPantsElement } from "./physics";
+import type { FramePose } from "./motion";
+import type { Anim, Body, FancyPantsElement } from "./physics";
+
+type Snapshot = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  pose: FramePose;
+  anim: Anim;
+  sceneX: number;
+  sceneY: number;
+  held: string;
+};
 
 const toCollidable = (
   element: ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>[number],
@@ -51,12 +69,11 @@ export const FancyPantsMode = ({
   excalidrawAPI: ExcalidrawImperativeAPI;
   onExit: () => void;
 }) => {
-  const [body, setBody] = useState<Body | null>(null);
-  const [heldKeys, setHeldKeys] = useState("");
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
   useEffect(() => {
     if (!active) {
-      setBody(null);
+      setSnapshot(null);
       return;
     }
 
@@ -91,6 +108,9 @@ export const FancyPantsMode = ({
     };
 
     let current = spawnBody(solidsNow(), viewportScene());
+    let previous: Body = current;
+    let accumulator = 0;
+    const look = lookFromBody(current);
 
     const swallow = (event: KeyboardEvent) => {
       event.preventDefault();
@@ -134,23 +154,53 @@ export const FancyPantsMode = ({
     };
 
     const frame = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.05, (now - last) / 1000) || 1 / 60;
       last = now;
       const solids = solidsNow();
-      current = stepBody(
-        current,
-        solids,
-        inputFromTokens(keys, jumpPressed),
-        dt || 1 / 60,
-      );
+      const input = inputFromTokens(keys, jumpPressed);
       jumpPressed = false;
+      accumulator += dt;
+      let jump = input.jumpPressed;
+      while (accumulator >= PHYSICS_DT) {
+        previous = current;
+        current = stepBody(
+          current,
+          solids,
+          { ...input, jumpPressed: jump },
+          PHYSICS_DT,
+        );
+        jump = false;
+        accumulator -= PHYSICS_DT;
+      }
+      const visual = interpolatePosition(
+        previous,
+        current,
+        accumulator / PHYSICS_DT,
+      );
 
       const state = excalidrawAPI.getAppState();
-      const target = cameraScrollFor(current, {
-        width: state.width,
-        height: state.height,
-        zoom: state.zoom.value || 1,
-      });
+      const zoom = state.zoom.value || 1;
+      const pose = stepLook(
+        look,
+        {
+          x: visual.x,
+          y: visual.y,
+          vx: current.vx,
+          vy: current.vy,
+          facing: current.facing,
+          onGround: current.onGround,
+          climbing: current.climbing,
+        },
+        dt,
+      );
+      const target = cameraScrollFor(
+        { ...current, x: visual.x, y: visual.y },
+        {
+          width: state.width,
+          height: state.height,
+          zoom,
+        },
+      );
 
       if (!snapped) {
         cameraX = target.scrollX;
@@ -170,11 +220,20 @@ export const FancyPantsMode = ({
         },
         captureUpdate: CaptureUpdateAction.NEVER,
       });
-      setBody(current);
       const held = ["arrowleft", "arrowright", "arrowup"]
         .filter((token) => keys.has(token))
         .join(" ");
-      setHeldKeys(held);
+      setSnapshot({
+        left: (visual.x + cameraX) * zoom + state.offsetLeft,
+        top: (visual.y + cameraY) * zoom + state.offsetTop,
+        width: current.w * zoom,
+        height: current.h * zoom,
+        pose,
+        anim: current.anim,
+        sceneX: visual.x,
+        sceneY: visual.y,
+        held,
+      });
       raf = requestAnimationFrame(frame);
     };
 
@@ -183,13 +242,11 @@ export const FancyPantsMode = ({
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("keyup", onKeyUp, true);
     raf = requestAnimationFrame(frame);
-    setBody(current);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
-      setHeldKeys("");
       excalidrawAPI.updateScene({
         appState: { viewModeEnabled: previousViewMode },
         captureUpdate: CaptureUpdateAction.NEVER,
@@ -197,45 +254,32 @@ export const FancyPantsMode = ({
     };
   }, [active, excalidrawAPI, onExit]);
 
-  if (!active || !body) {
+  if (!active || !snapshot) {
     return null;
   }
-
-  const state = excalidrawAPI.getAppState();
-  const origin = sceneCoordsToViewportCoords(
-    { sceneX: body.x, sceneY: body.y },
-    state,
-  );
-  const zoom = state.zoom.value || 1;
 
   return (
     <>
       <div className="fancy-pants-hud" data-testid="fancy-pants-hud">
         Arrow keys: left and right run, up jumps. Hold into a wall to climb.
         <span data-testid="fancy-pants-keys">
-          {heldKeys ? ` ${heldKeys}` : ""}
+          {snapshot.held ? ` ${snapshot.held}` : ""}
         </span>
       </div>
       <div
         className="fancy-pants-character"
         data-testid="fancy-pants-character"
-        data-anim={body.anim}
-        data-scene-x={Math.round(body.x)}
-        data-scene-y={Math.round(body.y)}
+        data-anim={snapshot.anim}
+        data-scene-x={Math.round(snapshot.sceneX)}
+        data-scene-y={Math.round(snapshot.sceneY)}
         style={{
-          left: origin.x,
-          top: origin.y,
-          width: body.w * zoom,
-          height: body.h * zoom,
+          left: snapshot.left,
+          top: snapshot.top,
+          width: snapshot.width,
+          height: snapshot.height,
         }}
       >
-        <FancyPantsCharacter
-          anim={body.anim}
-          time={body.time}
-          facing={body.facing}
-          climbingUp={body.vy < 0}
-          speed={body.vx}
-        />
+        <FancyPantsCharacter pose={snapshot.pose} />
       </div>
     </>
   );
