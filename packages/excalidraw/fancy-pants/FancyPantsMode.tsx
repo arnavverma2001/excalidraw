@@ -120,14 +120,6 @@ export const FancyPantsMode = ({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      const inField =
-        target instanceof HTMLElement &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
-      if (inField) {
-        return;
-      }
-
       if (event.key === "Escape" && !event.metaKey && !event.ctrlKey) {
         swallow(event);
         onExit();
