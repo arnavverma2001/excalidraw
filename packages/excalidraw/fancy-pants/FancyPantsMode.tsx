@@ -154,11 +154,11 @@ export const FancyPantsMode = ({
       const solids = solidsNow();
       const jumpHeld =
         keys.has("arrowup") || keys.has("w") || keys.has(" ");
-      const input = inputFromTokens(
-        keys,
-        jumpOnPress(jumpWasHeld, jumpHeld, jumpPressed),
-      );
+      if (jumpOnPress(jumpWasHeld, jumpHeld, jumpPressed)) {
+        jumpPressed = true;
+      }
       jumpWasHeld = jumpHeld;
+      const input = inputFromTokens(keys, jumpPressed);
       accumulator += dt;
       let jump = input.jumpPressed;
       while (accumulator >= PHYSICS_DT) {
