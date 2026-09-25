@@ -234,6 +234,7 @@ export const FancyPantsMode = ({
           time={body.time}
           facing={body.facing}
           climbingUp={body.vy < 0}
+          speed={body.vx}
         />
       </div>
     </>

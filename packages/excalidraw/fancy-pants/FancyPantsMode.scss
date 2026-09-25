@@ -4,6 +4,12 @@
     pointer-events: none;
     z-index: 3;
     overflow: visible;
+
+    svg {
+      overflow: visible;
+      transform: scale(1.45);
+      transform-origin: 50% 100%;
+    }
   }
 
   .fancy-pants-hud {
