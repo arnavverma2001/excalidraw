@@ -78,6 +78,14 @@ export function isJumpToken(token: string): boolean {
   return token === "arrowup" || token === "w" || token === " ";
 }
 
+export function jumpOnPress(
+  wasHeld: boolean,
+  isHeld: boolean,
+  keyDownEdge: boolean,
+) {
+  return keyDownEdge || (isHeld && !wasHeld);
+}
+
 export function inputFromTokens(
   tokens: ReadonlySet<string>,
   jumpPressed: boolean,

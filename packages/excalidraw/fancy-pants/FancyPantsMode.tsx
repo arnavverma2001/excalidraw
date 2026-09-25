@@ -7,6 +7,7 @@ import {
   inputFromTokens,
   isGameControl,
   isJumpToken,
+  jumpOnPress,
 } from "./controls";
 import {
   CHARACTER_RENDER_SCALE,
@@ -88,6 +89,7 @@ export const FancyPantsMode = ({
 
     const keys = new Set<string>();
     let jumpPressed = false;
+    let jumpWasHeld = false;
     let raf = 0;
     let last = performance.now();
     let cameraX = appState.scrollX;
@@ -150,7 +152,13 @@ export const FancyPantsMode = ({
       const dt = Math.min(0.05, (now - last) / 1000) || 1 / 60;
       last = now;
       const solids = solidsNow();
-      const input = inputFromTokens(keys, jumpPressed);
+      const jumpHeld =
+        keys.has("arrowup") || keys.has("w") || keys.has(" ");
+      const input = inputFromTokens(
+        keys,
+        jumpOnPress(jumpWasHeld, jumpHeld, jumpPressed),
+      );
+      jumpWasHeld = jumpHeld;
       accumulator += dt;
       let jump = input.jumpPressed;
       while (accumulator >= PHYSICS_DT) {

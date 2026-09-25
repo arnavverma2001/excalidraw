@@ -3,6 +3,7 @@ import {
   inputFromTokens,
   isGameControl,
   isJumpToken,
+  jumpOnPress,
 } from "./controls";
 
 describe("fancy pants arrow controls", () => {
@@ -26,6 +27,13 @@ describe("fancy pants arrow controls", () => {
     expect(controlToken({ key: "Up", code: "", keyCode: 38 })).toBe("arrowup");
     expect(isJumpToken("arrowup")).toBe(true);
     expect(inputFromTokens(new Set(["arrowup"]), true).jumpPressed).toBe(true);
+  });
+
+  it("requests one jump on a held-token rising edge", () => {
+    expect(jumpOnPress(false, true, false)).toBe(true);
+    expect(jumpOnPress(true, true, false)).toBe(false);
+    expect(jumpOnPress(true, false, false)).toBe(false);
+    expect(jumpOnPress(false, false, true)).toBe(true);
   });
 
   it("treats arrow keys as game controls even when the canvas is focused", () => {
