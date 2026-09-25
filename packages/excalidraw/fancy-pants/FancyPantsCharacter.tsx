@@ -45,6 +45,41 @@ const limbPoints = (
   };
 };
 
+/** Toe follows the shin so the foot swings through instead of skating flat. */
+const Foot = ({
+  x1,
+  y1,
+  x2,
+  y2,
+}: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = dx / len;
+  const ny = dy / len;
+  const c = Math.cos(-1.05);
+  const s = Math.sin(-1.05);
+  const fx = nx * c - ny * s;
+  const fy = nx * s + ny * c;
+  const toe = 3.3;
+  return (
+    <line
+      x1={x2}
+      y1={y2}
+      x2={x2 + fx * toe}
+      y2={y2 + fy * toe}
+      stroke="#141414"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+    />
+  );
+};
+
 const Stick = ({
   x1,
   y1,
@@ -97,7 +132,7 @@ export const FancyPantsCharacter = ({
 
   const bob =
     anim === "run"
-      ? Math.cos(phase * 2) * 2.1
+      ? Math.cos(phase * 2) * 3.3
       : anim === "idle"
       ? Math.sin(time * 2.6) * 0.7
       : anim === "climb"
@@ -195,48 +230,39 @@ export const FancyPantsCharacter = ({
               strokeWidth="1.9"
               strokeLinecap="round"
             />
-            <Stick
-              x1={HIP.x}
-              y1={HIP.y}
-              x2={legA.kneeX}
-              y2={legA.kneeY}
-              x3={legA.endX}
-              y3={legA.endY}
-            />
-            <Stick
-              x1={HIP.x}
-              y1={HIP.y}
-              x2={legB.kneeX}
-              y2={legB.kneeY}
-              x3={legB.endX}
-              y3={legB.endY}
-            />
-            <line
-              x1={legA.endX - 2.2}
-              y1={legA.endY}
-              x2={legA.endX + 2.4}
-              y2={legA.endY}
-              stroke="#141414"
-              strokeWidth="2.1"
-              strokeLinecap="round"
-            />
-            <line
-              x1={legB.endX - 2.2}
-              y1={legB.endY}
-              x2={legB.endX + 2.4}
-              y2={legB.endY}
-              stroke="#141414"
-              strokeWidth="2.1"
-              strokeLinecap="round"
-            />
+            {[legA, legB]
+              .slice()
+              .sort((a, b) => a.endX - b.endX)
+              .map((leg, index) => (
+                <g key={index === 0 ? "back-leg" : "front-leg"}>
+                  <Stick
+                    x1={HIP.x}
+                    y1={HIP.y}
+                    x2={leg.kneeX}
+                    y2={leg.kneeY}
+                    x3={leg.endX}
+                    y3={leg.endY}
+                  />
+                  <Foot
+                    x1={leg.kneeX}
+                    y1={leg.kneeY}
+                    x2={leg.endX}
+                    y2={leg.endY}
+                  />
+                </g>
+              ))}
             <g transform={`translate(${hairShift} 0)`}>
               {SPIKES.map((spike, index) => {
                 const flutter =
                   wind > 0.25
                     ? Math.sin(time * 24 + index * 0.8) * 7 * wind
                     : Math.sin(time * 2.1 + index) * 2.4;
-                const len = spike.len * (1 + wind * 0.5);
-                const angle = spike.rest + blow + flutter;
+                const len = spike.len * (1 + wind * 0.55);
+                // Longer spikes trail further, so the hair points along the run.
+                const angle =
+                  spike.rest * (1 - wind * 0.62) +
+                  blow * (0.7 + (spike.len / 10.2) * 0.5) +
+                  flutter;
                 return (
                   <polygon
                     key={index}

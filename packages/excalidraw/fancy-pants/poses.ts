@@ -17,11 +17,17 @@ export type Point = {
   y: number;
 };
 
-/** 0 is straight down. Positive thigh swings toward the facing direction. */
+/**
+ * 0 is straight down. Positive thigh swings toward the facing direction.
+ * The knee lifts while the thigh is still driving forward, then the leg
+ * extends. A sine on the thigh alone kicks the heel back and both feet
+ * leave the ground in a split.
+ */
 export function runLeg(phase: number): Joint {
+  const lift = Math.max(0, Math.cos(phase));
   return {
-    thigh: Math.sin(phase) * 1.02,
-    knee: 0.18 + Math.max(0, Math.cos(phase)) * 1.2,
+    thigh: Math.sin(phase) * 0.92 + lift * 0.62,
+    knee: 0.14 + lift * lift * 1.4,
   };
 }
 
@@ -91,15 +97,18 @@ export function runHand(phase: number): Point {
 }
 
 /**
- * Hair streams opposite velocity. Positive speed (moving right) yields a
- * negative SVG rotation so the spikes point backward. `wind` is 0..1.
+ * Local degrees, 0 upright and negative trailing behind the nose.
+ * The sprite mirror applies `facing`, so the trail flips with the turn
+ * instead of pointing forward while velocity is still the old way.
+ * `wind` is 0..1 and eases off when speed drops.
  */
 export function hairBlowDegrees(speed: number, wind: number, facing: 1 | -1) {
   if (wind === 0) {
     return 0;
   }
-  const direction = speed === 0 ? facing : Math.sign(speed);
-  return -wind * direction * facing * 62;
+  const along = Math.min(1, Math.abs(speed) / 220);
+  // `facing` only mirrors the sprite. The local trail is the same either way.
+  return -wind * (0.35 + 0.65 * along) * 72 * Math.abs(facing);
 }
 
 export function stepWind(current: number, speed: number) {
