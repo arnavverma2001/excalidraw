@@ -7,7 +7,7 @@ import {
   inputFromTokens,
   isGameControl,
   isJumpToken,
-  jumpOnPress,
+  queueJump,
 } from "./controls";
 import {
   CHARACTER_RENDER_SCALE,
@@ -154,9 +154,7 @@ export const FancyPantsMode = ({
       const solids = solidsNow();
       const jumpHeld =
         keys.has("arrowup") || keys.has("w") || keys.has(" ");
-      if (jumpOnPress(jumpWasHeld, jumpHeld, jumpPressed)) {
-        jumpPressed = true;
-      }
+      jumpPressed = queueJump(jumpPressed, jumpWasHeld, jumpHeld);
       jumpWasHeld = jumpHeld;
       const input = inputFromTokens(keys, jumpPressed);
       accumulator += dt;

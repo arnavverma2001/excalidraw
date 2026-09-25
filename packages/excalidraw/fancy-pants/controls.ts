@@ -86,6 +86,15 @@ export function jumpOnPress(
   return keyDownEdge || (isHeld && !wasHeld);
 }
 
+export function queueJump(
+  pending: boolean,
+  wasHeld: boolean,
+  isHeld: boolean,
+  keyDownEdge = false,
+) {
+  return pending || jumpOnPress(wasHeld, isHeld, keyDownEdge);
+}
+
 export function inputFromTokens(
   tokens: ReadonlySet<string>,
   jumpPressed: boolean,

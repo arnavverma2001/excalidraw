@@ -7,6 +7,13 @@ import {
   spawnBody,
   stepBody,
 } from "./physics";
+import {
+  controlToken,
+  inputFromTokens,
+  isGameControl,
+  isJumpToken,
+  queueJump,
+} from "./controls";
 
 import type { FancyPantsElement, Solid } from "./physics";
 
@@ -68,6 +75,49 @@ describe("fancy pants physics", () => {
     expect(rising.anim).toBe("jump");
     expect(settled.onGround).toBe(true);
     expect(settled.y + settled.h).toBeCloseTo(floor.y, 1);
+  });
+
+  it("routes ArrowUp into standing and running jump arcs", () => {
+    const event = { key: "ArrowUp", code: "ArrowUp" };
+    expect(isGameControl(event)).toBe(true);
+
+    const token = controlToken(event);
+    expect(isJumpToken(token)).toBe(true);
+    const tokens = new Set([token]);
+    const queued = queueJump(false, false, tokens.has("arrowup"));
+    const jumpInput = inputFromTokens(tokens, queued);
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const standingLaunch = stepBody(start, [floor], jumpInput, 1 / 120);
+
+    expect(standingLaunch.onGround).toBe(false);
+    expect(standingLaunch.vy).toBeLessThan(-600);
+    expect(standingLaunch.y).toBeLessThan(start.y - 5);
+
+    const running = run(start, [floor], { right: true }, 0.45);
+    const runningInput = inputFromTokens(
+      new Set(["arrowright", token]),
+      queued,
+    );
+    const runningLaunch = stepBody(running, [floor], runningInput, 1 / 120);
+    const runningApex = run(
+      runningLaunch,
+      [floor],
+      { right: true },
+      0.25,
+    );
+    const runningLanded = run(
+      runningLaunch,
+      [floor],
+      { right: true },
+      1.05,
+    );
+
+    expect(runningLaunch.vy).toBeLessThan(-600);
+    expect(runningLaunch.vx).toBeGreaterThan(250);
+    expect(runningApex.y).toBeLessThan(running.y - 60);
+    expect(runningApex.x).toBeGreaterThan(running.x + 50);
+    expect(runningLanded.onGround).toBe(true);
+    expect(runningLanded.x).toBeGreaterThan(running.x + 200);
   });
 
   it("climbs a vertical side and stands on top", () => {

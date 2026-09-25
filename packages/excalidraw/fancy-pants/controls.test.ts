@@ -4,6 +4,7 @@ import {
   isGameControl,
   isJumpToken,
   jumpOnPress,
+  queueJump,
 } from "./controls";
 
 describe("fancy pants arrow controls", () => {
@@ -34,6 +35,16 @@ describe("fancy pants arrow controls", () => {
     expect(jumpOnPress(true, true, false)).toBe(false);
     expect(jumpOnPress(true, false, false)).toBe(false);
     expect(jumpOnPress(false, false, true)).toBe(true);
+  });
+
+  it("keeps a jump queued until a physics step can consume it", () => {
+    const requested = queueJump(false, false, true);
+    const nextRenderWithoutPhysics = queueJump(requested, true, true);
+    const afterConsumption = queueJump(false, true, true);
+
+    expect(requested).toBe(true);
+    expect(nextRenderWithoutPhysics).toBe(true);
+    expect(afterConsumption).toBe(false);
   });
 
   it("treats arrow keys as game controls even when the canvas is focused", () => {
