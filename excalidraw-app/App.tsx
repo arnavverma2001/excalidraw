@@ -147,6 +147,7 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { PictionaryPanel } from "./components/PictionaryPanel";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -375,6 +376,7 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [pictionaryOpen, setPictionaryOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -990,7 +992,15 @@ const ExcalidrawWrapper = () => {
           theme={appTheme}
           setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
+          pictionaryOpen={pictionaryOpen}
+          onPictionary={() => setPictionaryOpen(true)}
         />
+        {pictionaryOpen && (
+          <PictionaryPanel
+            excalidrawAPI={excalidrawAPI}
+            onExit={() => setPictionaryOpen(false)}
+          />
+        )}
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}

@@ -2,6 +2,7 @@ import {
   loginIcon,
   ExcalLogo,
   eyeIcon,
+  FreedrawIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
@@ -22,6 +23,8 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   setTheme: (theme: Theme | "system") => void;
   refresh: () => void;
+  pictionaryOpen: boolean;
+  onPictionary: () => void;
 }> = React.memo((props) => {
   return (
     <MainMenu>
@@ -38,6 +41,14 @@ export const AppMainMenu: React.FC<{
       <MainMenu.DefaultItems.CommandPalette className="highlighted" />
       <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
+      <MainMenu.Item
+        icon={FreedrawIcon}
+        data-testid="pictionary-menu-item"
+        selected={props.pictionaryOpen}
+        onSelect={() => props.onPictionary()}
+      >
+        Pictionary
+      </MainMenu.Item>
       <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.Separator />
       <MainMenu.ItemLink
