@@ -99,18 +99,8 @@ describe("fancy pants physics", () => {
       queued,
     );
     const runningLaunch = stepBody(running, [floor], runningInput, 1 / 120);
-    const runningApex = run(
-      runningLaunch,
-      [floor],
-      { right: true },
-      0.25,
-    );
-    const runningLanded = run(
-      runningLaunch,
-      [floor],
-      { right: true },
-      1.05,
-    );
+    const runningApex = run(runningLaunch, [floor], { right: true }, 0.25);
+    const runningLanded = run(runningLaunch, [floor], { right: true }, 1.05);
 
     expect(runningLaunch.vy).toBeLessThan(-600);
     expect(runningLaunch.vx).toBeGreaterThan(250);
@@ -152,6 +142,196 @@ describe("fancy pants physics", () => {
 
     expect(scroll.scrollX).toBeCloseTo(400 - (100 + CHAR_WIDTH / 2));
     expect(scroll.scrollY).toBeCloseTo(300 - (50 + CHAR_HEIGHT / 2));
+  });
+
+  it("launches an idle jump with no horizontal speed and lands on the same floor", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const rising = run(start, [floor], { jump: true }, 0.2);
+    const apex = run(start, [floor], { jump: true }, 0.28);
+    const landed = run(start, [floor], { jump: true }, 1.2);
+
+    expect(start.onGround).toBe(true);
+    expect(rising.onGround).toBe(false);
+    expect(rising.anim).toBe("jump");
+    expect(rising.y).toBeLessThan(start.y - 40);
+    expect(Math.abs(rising.vx)).toBeLessThan(20);
+    expect(apex.y).toBeLessThan(rising.y);
+    expect(landed.onGround).toBe(true);
+    expect(landed.anim).toBe("idle");
+    expect(landed.x).toBeCloseTo(start.x, 0);
+    expect(landed.y + landed.h).toBeCloseTo(floor.y, 1);
+  });
+
+  it("keeps run speed through a running jump", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const running = run(start, [floor], { right: true }, 0.5);
+    const launch = stepBody(
+      running,
+      [floor],
+      { left: false, right: true, jumpPressed: true },
+      1 / 120,
+    );
+    const airborne = run(launch, [floor], { right: true }, 0.22);
+    const landed = run(launch, [floor], { right: true }, 1.05);
+
+    expect(running.onGround).toBe(true);
+    expect(running.anim).toBe("run");
+    expect(launch.onGround).toBe(false);
+    expect(launch.vy).toBeLessThan(-600);
+    expect(launch.vx).toBeGreaterThan(250);
+    expect(airborne.x).toBeGreaterThan(running.x + 40);
+    expect(airborne.y).toBeLessThan(running.y - 50);
+    expect(landed.onGround).toBe(true);
+    expect(landed.x).toBeGreaterThan(running.x + 180);
+  });
+
+  it("climbs while holding into a wall", () => {
+    const wall: Solid = { x: 120, y: 0, w: 28, h: 420 };
+    const start = createBody(120 - CHAR_WIDTH + 2, 280);
+    const climbing = run(start, [wall], { right: true }, 0.45);
+
+    expect(climbing.climbing).toBe(true);
+    expect(climbing.anim).toBe("climb");
+    expect(climbing.onGround).toBe(false);
+    expect(climbing.y).toBeLessThan(start.y - 50);
+    expect(climbing.facing).toBe(1);
+  });
+
+  it("wall-jumps away from a climb", () => {
+    const wall: Solid = { x: 120, y: 0, w: 28, h: 420 };
+    const start = createBody(120 - CHAR_WIDTH + 2, 220);
+    const climbing = run(start, [wall], { right: true }, 0.25);
+    const launch = stepBody(
+      climbing,
+      [wall],
+      { left: false, right: true, jumpPressed: true },
+      1 / 120,
+    );
+
+    expect(climbing.climbing).toBe(true);
+    expect(launch.vy).toBeLessThan(-600);
+    expect(launch.vx).toBeLessThan(0);
+    expect(launch.x).toBeLessThan(climbing.x);
+    expect(launch.anim).toBe("jump");
+  });
+
+  it("does not double-jump while airborne", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const rising = run(start, [floor], { jump: true }, 0.12);
+    const again = stepBody(
+      rising,
+      [floor],
+      { left: false, right: false, jumpPressed: true },
+      1 / 120,
+    );
+
+    expect(rising.onGround).toBe(false);
+    expect(again.vy).toBeGreaterThan(rising.vy);
+    expect(again.vy).toBeGreaterThan(-680);
+  });
+
+  it("consumes a held ArrowUp once through the render-frame queue", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const tokens = new Set(["arrowup"]);
+    let pending = false;
+    let wasHeld = false;
+    let body = start;
+    let launches = 0;
+
+    for (let i = 0; i < 90; i++) {
+      const held = tokens.has("arrowup");
+      pending = queueJump(pending, wasHeld, held);
+      wasHeld = held;
+      const next = stepBody(
+        body,
+        [floor],
+        inputFromTokens(tokens, pending),
+        DT,
+      );
+      if (pending) {
+        pending = false;
+      }
+      if (body.onGround && !next.onGround) {
+        launches += 1;
+      }
+      body = next;
+    }
+
+    expect(launches).toBe(1);
+    expect(body.onGround).toBe(true);
+  });
+
+  it("keeps a queued ArrowUp across a render that has no physics step", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const tokens = new Set(["arrowup"]);
+    const queued = queueJump(false, false, tokens.has("arrowup"));
+    const stillQueued = queueJump(queued, true, tokens.has("arrowup"));
+    const launch = stepBody(
+      start,
+      [floor],
+      inputFromTokens(tokens, stillQueued),
+      1 / 120,
+    );
+
+    expect(queued).toBe(true);
+    expect(stillQueued).toBe(true);
+    expect(launch.onGround).toBe(false);
+    expect(launch.vy).toBeLessThan(-600);
+  });
+
+  it("steps onto a low platform and walks off a short ledge", () => {
+    const step: Solid = { x: 70, y: 188, w: 90, h: 12 };
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const onStep = run(start, [floor, step], { right: true }, 0.55);
+
+    expect(onStep.onGround).toBe(true);
+    expect(onStep.y + onStep.h).toBeCloseTo(step.y, 1);
+
+    const ledge: Solid = { x: 0, y: 200, w: 70, h: 24 };
+    const onLedge = spawnBody([ledge], { x: 0, y: 0, w: 800, h: 600 });
+    const fallen = run(onLedge, [ledge], { right: true }, 1.2);
+
+    expect(fallen.onGround).toBe(false);
+    expect(fallen.y).toBeGreaterThan(onLedge.y + 40);
+    expect(fallen.anim).toBe("jump");
+  });
+
+  it("hits a ceiling instead of passing through it", () => {
+    const lowFloor: Solid = { x: 0, y: 320, w: 600, h: 40 };
+    const ceiling: Solid = { x: 0, y: 200, w: 600, h: 16 };
+    const start = spawnBody([lowFloor], { x: 0, y: 0, w: 800, h: 600 });
+    const jumped = run(start, [lowFloor, ceiling], { jump: true }, 0.22);
+
+    expect(jumped.y).toBeGreaterThanOrEqual(ceiling.y + ceiling.h - 0.5);
+    expect(jumped.vy).toBeGreaterThanOrEqual(0);
+  });
+
+  it("applies a large dt jump only on the first physics slice", () => {
+    const start = spawnBody([floor], { x: 0, y: 0, w: 800, h: 600 });
+    const stepped = stepBody(
+      start,
+      [floor],
+      { left: false, right: false, jumpPressed: true },
+      2 / 90,
+    );
+
+    expect(stepped.onGround).toBe(false);
+    expect(stepped.vy).toBeGreaterThan(-680);
+    expect(stepped.vy).toBeLessThan(-600);
+  });
+
+  it("spawns on the leftmost standable solid and mid-viewport with none", () => {
+    const right: Solid = { x: 240, y: 80, w: 80, h: 16 };
+    const left: Solid = { x: 40, y: 160, w: 80, h: 16 };
+    const onLeft = spawnBody([right, left], { x: 0, y: 0, w: 800, h: 600 });
+    expect(onLeft.x).toBeCloseTo(left.x + 8, 1);
+    expect(onLeft.y + onLeft.h).toBeCloseTo(left.y - 0.5, 1);
+    expect(onLeft.onGround).toBe(true);
+
+    const empty = spawnBody([], { x: 0, y: 0, w: 800, h: 600 });
+    expect(empty.x).toBeCloseTo(400 - CHAR_WIDTH / 2);
+    expect(empty.y).toBeCloseTo(300 - CHAR_HEIGHT / 2);
+    expect(empty.onGround).toBe(false);
   });
 });
 
@@ -253,5 +433,42 @@ describe("fancy pants solids", () => {
       [0, 0],
       [40, 0],
     ]);
+  });
+
+  it("keeps frame interiors open and expands rotated rectangles", () => {
+    const frame = shapesToSolids([
+      { ...base, type: "frame", x: 0, y: 0, width: 400, height: 300 },
+    ]);
+    expect(frame).toHaveLength(4);
+    const interior: Solid = { x: 80, y: 80, w: 40, h: 40 };
+    const hitsInterior = frame.some(
+      (solid) =>
+        interior.x < solid.x + solid.w &&
+        interior.x + interior.w > solid.x &&
+        interior.y < solid.y + solid.h &&
+        interior.y + interior.h > solid.y,
+    );
+    expect(hitsInterior).toBe(false);
+
+    const inside = createBody(180, 120);
+    const falling = run(inside, frame, {}, 0.35);
+    expect(falling.y).toBeGreaterThan(inside.y + 20);
+
+    const rotated = shapesToSolids([
+      {
+        ...base,
+        type: "rectangle",
+        width: 80,
+        height: 80,
+        angle: Math.PI / 4,
+      },
+    ]);
+    expect(rotated).toHaveLength(1);
+    expect(rotated[0].w).toBeGreaterThan(80);
+    expect(rotated[0].h).toBeGreaterThan(80);
+
+    expect(
+      shapesToSolids([{ ...base, type: "rectangle", width: 0, height: 0 }]),
+    ).toEqual([]);
   });
 });
