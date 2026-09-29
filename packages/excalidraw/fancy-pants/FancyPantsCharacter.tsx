@@ -3,6 +3,7 @@ import { BODY_SQUASH } from "./motion";
 import type { Chain, FramePose } from "./motion";
 
 const INK = "#141414";
+export const PANTS = "#ff6b1a";
 
 const line = (chain: Chain, withToe: boolean) =>
   withToe
@@ -15,6 +16,17 @@ const Limb = ({ chain, toe }: { chain: Chain; toe: boolean }) => (
     fill="none"
     stroke={INK}
     strokeWidth="1.35"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
+const Pants = ({ chain }: { chain: Chain }) => (
+  <polyline
+    points={`${chain.ax},${chain.ay} ${chain.bx},${chain.by} ${chain.cx},${chain.cy}`}
+    fill="none"
+    stroke={PANTS}
+    strokeWidth="5.4"
     strokeLinecap="round"
     strokeLinejoin="round"
   />
@@ -59,6 +71,10 @@ export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
             strokeWidth="1.35"
             strokeLinecap="round"
           />
+          <circle cx={pose.hipX} cy={pose.hipY + 0.8} r="3.2" fill={PANTS} />
+          {legs.map(({ chain, index }) => (
+            <Pants key={`pants-${index}`} chain={chain} />
+          ))}
           {legs.map(({ chain, index }) => (
             <Limb key={`leg-${index}`} chain={chain} toe />
           ))}
