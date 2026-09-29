@@ -545,6 +545,11 @@
     "versionNotAvailable": "Version not available",
     "width": "Width"
   },
+  "minimap": {
+    "title": "Minimap",
+    "hide": "Hide minimap",
+    "show": "Show minimap"
+  },
   "toast": {
     "addedToLibrary": "Added to library",
     "copyStyles": "Copied styles.",

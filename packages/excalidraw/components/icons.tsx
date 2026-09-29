@@ -2028,6 +2028,16 @@ export const eyeIcon = createIcon(
   tablerIconProps,
 );
 
+// tabler-icons: map-2 (simplified minimap)
+export const minimapIcon = createIcon(
+  <g stroke="currentColor" fill="none" strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M3 6a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-12z" />
+    <path d="M9 9h4v4h-4z" />
+  </g>,
+  tablerIconProps,
+);
+
 export const eyeClosedIcon = createIcon(
   <g stroke="currentColor" fill="none">
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />

@@ -62,6 +62,7 @@ export type ActionName =
   | "arrowBinding"
   | "midpointSnapping"
   | "stats"
+  | "minimap"
   | "changeStrokeColor"
   | "changeBackgroundColor"
   | "changeFillStyle"

@@ -18,7 +18,7 @@ import { ShapeCache } from "@excalidraw/element";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
-import { actionToggleStats } from "../actions";
+import { actionToggleMinimap, actionToggleStats } from "../actions";
 import { trackEvent } from "../analytics";
 import { TunnelsContext, useInitializeTunnels } from "../context/tunnels";
 import { UIAppStateContext } from "../context/ui-appState";
@@ -35,6 +35,7 @@ import {
 import { LoadingMessage } from "./LoadingMessage";
 import { LockButton } from "./LockButton";
 import { MobileMenu } from "./MobileMenu";
+import { MinimapContainer } from "./Minimap";
 import { PasteChartDialog } from "./PasteChartDialog";
 import { Section } from "./Section";
 import Stack from "./Stack";
@@ -605,6 +606,12 @@ const LayerUI = ({
               actionManager={actionManager}
               showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
+            />
+            <MinimapContainer
+              app={app}
+              onToggle={() => {
+                actionManager.executeAction(actionToggleMinimap);
+              }}
             />
             {(appState.toast || appState.scrolledOutside) && (
               <div className="floating-status-stack">

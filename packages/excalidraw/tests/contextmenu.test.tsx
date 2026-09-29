@@ -95,6 +95,7 @@ describe("contextMenu element", () => {
       "zenMode",
       "viewMode",
       "stats",
+      "minimap",
     ];
 
     expect(contextMenu).not.toBeNull();
