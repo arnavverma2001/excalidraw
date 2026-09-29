@@ -7,7 +7,15 @@ import { DebugFooter, isVisualDebuggerEnabled } from "./DebugCanvas";
 import { EncryptedIcon } from "./EncryptedIcon";
 
 export const AppFooter = React.memo(
-  ({ onChange }: { onChange: () => void }) => {
+  ({
+    onChange,
+    fancyPantsActive,
+    onToggleFancyPants,
+  }: {
+    onChange: () => void;
+    fancyPantsActive: boolean;
+    onToggleFancyPants: () => void;
+  }) => {
     return (
       <Footer>
         <div
@@ -17,6 +25,19 @@ export const AppFooter = React.memo(
             alignItems: "center",
           }}
         >
+          <button
+            type="button"
+            className={
+              fancyPantsActive
+                ? "fancy-pants-toggle fancy-pants-toggle--active"
+                : "fancy-pants-toggle"
+            }
+            data-testid="fancy-pants-toggle"
+            aria-pressed={fancyPantsActive}
+            onClick={onToggleFancyPants}
+          >
+            {fancyPantsActive ? "Exit Fancy Pants" : "Fancy Pants"}
+          </button>
           {isVisualDebuggerEnabled() && <DebugFooter onChange={onChange} />}
           {!isExcalidrawPlusSignedUser && <EncryptedIcon />}
         </div>
