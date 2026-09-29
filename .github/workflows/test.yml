@@ -3,6 +3,8 @@ name: Tests
 on:
   push:
     branches: master
+  pull_request:
+    branches: master
 
 jobs:
   test:
@@ -16,4 +18,5 @@ jobs:
       - name: Install and test
         run: |
           yarn install
-          yarn test:app
+          yarn test:app --watch=false
+          yarn test:app --watch=false packages/excalidraw/fancy-pants
