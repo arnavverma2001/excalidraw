@@ -4,11 +4,55 @@ import type { Chain, FramePose } from "./motion";
 
 const INK = "#141414";
 export const PANTS = "#ff6b1a";
+export const PANT_HALF_HIP = 4.8;
+export const PANT_HALF_KNEE = 4.1;
+export const PANT_HALF_ANKLE = 3.3;
+
+type Pt = { x: number; y: number };
 
 const line = (chain: Chain, withToe: boolean) =>
   withToe
     ? `${chain.ax},${chain.ay} ${chain.bx},${chain.by} ${chain.cx},${chain.cy} ${chain.dx},${chain.dy}`
     : `${chain.ax},${chain.ay} ${chain.bx},${chain.by} ${chain.cx},${chain.cy}`;
+
+const normal = (from: Pt, to: Pt): Pt => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: -dy / len, y: dx / len };
+};
+
+const add = (point: Pt, dir: Pt, scale: number): Pt => ({
+  x: point.x + dir.x * scale,
+  y: point.y + dir.y * scale,
+});
+
+const fmt = (points: readonly Pt[]) =>
+  points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+
+/** Closed hip→knee→ankle fill wide enough to cover the ink legs. */
+export const pantPolygon = (chain: Chain) => {
+  const hip = { x: chain.ax, y: chain.ay };
+  const knee = { x: chain.bx, y: chain.by };
+  const ankle = { x: chain.cx, y: chain.cy };
+  const thigh = normal(hip, knee);
+  const shin = normal(knee, ankle);
+  const atKnee = {
+    x: thigh.x + shin.x,
+    y: thigh.y + shin.y,
+  };
+  const kneeLen = Math.hypot(atKnee.x, atKnee.y) || 1;
+  const kneeN = { x: atKnee.x / kneeLen, y: atKnee.y / kneeLen };
+
+  return fmt([
+    add(hip, thigh, PANT_HALF_HIP),
+    add(knee, kneeN, PANT_HALF_KNEE),
+    add(ankle, shin, PANT_HALF_ANKLE),
+    add(ankle, shin, -PANT_HALF_ANKLE),
+    add(knee, kneeN, -PANT_HALF_KNEE),
+    add(hip, thigh, -PANT_HALF_HIP),
+  ]);
+};
 
 const Limb = ({ chain, toe }: { chain: Chain; toe: boolean }) => (
   <polyline
@@ -22,12 +66,11 @@ const Limb = ({ chain, toe }: { chain: Chain; toe: boolean }) => (
 );
 
 const Pants = ({ chain }: { chain: Chain }) => (
-  <polyline
-    points={`${chain.ax},${chain.ay} ${chain.bx},${chain.by} ${chain.cx},${chain.cy}`}
-    fill="none"
+  <polygon
+    points={pantPolygon(chain)}
+    fill={PANTS}
     stroke={PANTS}
-    strokeWidth="5.4"
-    strokeLinecap="round"
+    strokeWidth="1.2"
     strokeLinejoin="round"
   />
 );
@@ -71,7 +114,13 @@ export const FancyPantsCharacter = ({ pose }: { pose: FramePose }) => {
             strokeWidth="1.35"
             strokeLinecap="round"
           />
-          <circle cx={pose.hipX} cy={pose.hipY + 0.8} r="3.2" fill={PANTS} />
+          <ellipse
+            cx={pose.hipX}
+            cy={pose.hipY + 1.4}
+            rx={PANT_HALF_HIP + 0.6}
+            ry="4.2"
+            fill={PANTS}
+          />
           {legs.map(({ chain, index }) => (
             <Pants key={`pants-${index}`} chain={chain} />
           ))}
