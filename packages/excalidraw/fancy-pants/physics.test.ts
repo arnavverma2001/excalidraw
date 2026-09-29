@@ -458,14 +458,14 @@ describe("fancy pants solids", () => {
       {
         ...base,
         type: "rectangle",
-        width: 100,
-        height: 40,
+        width: 80,
+        height: 80,
         angle: Math.PI / 4,
       },
     ]);
     expect(rotated).toHaveLength(1);
-    expect(rotated[0].w).toBeGreaterThan(100);
-    expect(rotated[0].h).toBeGreaterThan(40);
+    expect(rotated[0].w).toBeGreaterThan(80);
+    expect(rotated[0].h).toBeGreaterThan(80);
 
     expect(
       shapesToSolids([{ ...base, type: "rectangle", width: 0, height: 0 }]),

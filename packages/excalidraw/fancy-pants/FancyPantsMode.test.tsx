@@ -93,6 +93,7 @@ describe("fancy pants mode toggle", () => {
 
     render(<FancyPantsMode active excalidrawAPI={api} onExit={() => {}} />);
     clock.flush(16);
+    clock.flush(16);
 
     expect(updateScene).toHaveBeenCalledWith(
       expect.objectContaining({
