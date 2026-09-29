@@ -18,7 +18,7 @@ import { ShapeCache } from "@excalidraw/element";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
-import { actionToggleStats } from "../actions";
+import { actionToggleMinimap, actionToggleStats } from "../actions";
 import { trackEvent } from "../analytics";
 import { TunnelsContext, useInitializeTunnels } from "../context/tunnels";
 import { UIAppStateContext } from "../context/ui-appState";
@@ -50,6 +50,7 @@ import { sidebarRightIcon } from "./icons";
 import { DefaultSidebar } from "./DefaultSidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
 import { Stats } from "./Stats";
+import { Minimap } from "./Minimap/Minimap";
 import ElementLinkDialog from "./ElementLinkDialog";
 import { ErrorDialog } from "./ErrorDialog";
 import { EyeDropper, activeEyeDropperAtom } from "./EyeDropper";
@@ -606,6 +607,14 @@ const LayerUI = ({
               showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
             />
+            {appState.showMinimap && !appState.zenModeEnabled && (
+              <Minimap
+                app={app}
+                onClose={() => {
+                  actionManager.executeAction(actionToggleMinimap);
+                }}
+              />
+            )}
             {(appState.toast || appState.scrolledOutside) && (
               <div className="floating-status-stack">
                 {appState.toast && (
