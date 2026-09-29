@@ -1,5 +1,9 @@
 import {
+  climbArm,
+  climbLeg,
   hairBlowDegrees,
+  jumpArms,
+  jumpLegs,
   runArm,
   runFoot,
   runHand,
@@ -55,5 +59,17 @@ describe("fancy pants stick poses", () => {
     }
     expect(wind).toBeLessThan(0.7);
     expect(wind).toBeGreaterThan(0.05);
+  });
+
+  it("cycles climb limbs and splits a jump pose", () => {
+    expect(climbLeg(Math.PI / 2).thigh).toBeGreaterThan(climbLeg(0).thigh);
+    expect(climbLeg(0).knee).toBeGreaterThan(climbLeg(Math.PI).knee);
+    expect(climbArm(0).thigh).toBeGreaterThan(climbArm(Math.PI / 2).thigh);
+
+    const legs = jumpLegs();
+    const arms = jumpArms();
+    expect(legs.lead.thigh).toBeGreaterThan(0);
+    expect(legs.trail.thigh).toBeLessThan(0);
+    expect(arms.lead.thigh).toBeGreaterThan(arms.trail.thigh);
   });
 });

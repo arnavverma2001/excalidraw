@@ -1,8 +1,10 @@
+import { createBody } from "./physics";
 import {
   STRIDE,
   createLook,
   flightStage,
   interpolatePosition,
+  lookFromBody,
   legCycle,
   stepLook,
 } from "./motion";
@@ -379,6 +381,54 @@ describe("fancy pants motion", () => {
     }
     expect(look.weights.climb).toBeGreaterThan(0.8);
     expect(armOrderChanges).toBeGreaterThanOrEqual(5);
+  });
+
+  it("seeds look state from the physics body", () => {
+    const body = createBody(12, 40, true);
+    const look = lookFromBody(body);
+    expect(look.visualX).toBe(12);
+    expect(look.visualY).toBe(40);
+    expect(look.face).toBe(1);
+    expect(look.weights.idle).toBe(1);
+  });
+
+  it("crouches and recovers from an idle jump", () => {
+    const look = createLook(0, 0, 1);
+    for (let i = 0; i < 18; i++) {
+      stepLook(look, sample(0, { vx: 0, onGround: true }), 1 / 60);
+    }
+    expect(look.weights.idle).toBeGreaterThan(0.8);
+    expect(look.weights.run).toBeLessThan(0.2);
+
+    const frames: ReturnType<typeof stepLook>[] = [];
+    let y = 0;
+    let vy = -680;
+    for (let i = 0; i < 30; i++) {
+      y += vy / 60;
+      frames.push(
+        stepLook(
+          look,
+          sample(0, { x: 0, y, vx: 0, vy, onGround: false }),
+          1 / 60,
+        ),
+      );
+      vy += 2800 / 60;
+    }
+
+    expect(look.weights.idle).toBeLessThan(0.3);
+    expect(frames[0].drop).toBeGreaterThan(0);
+    expect(frames.some((frame) => frame.compress > 0.05)).toBe(true);
+
+    const landing = stepLook(
+      look,
+      sample(0, { x: 0, y: 0, vx: 0, vy: 0, onGround: true }),
+      1 / 60,
+    );
+    expect(landing.compress).toBeGreaterThan(0.05);
+    for (let i = 0; i < 16; i++) {
+      stepLook(look, sample(0, { vx: 0, onGround: true }), 1 / 60);
+    }
+    expect(look.compress).toBeLessThan(0.2);
   });
 
   it("blends a climb dismount instead of snapping", () => {

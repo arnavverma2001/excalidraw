@@ -54,4 +54,35 @@ describe("fancy pants arrow controls", () => {
       isGameControl({ key: "ArrowLeft", code: "ArrowLeft", ctrlKey: true }),
     ).toBe(false);
   });
+
+  it("maps WASD and Space onto the same movement and jump tokens", () => {
+    expect(controlToken({ key: "a", code: "KeyA" })).toBe("a");
+    expect(controlToken({ key: "d", code: "KeyD" })).toBe("d");
+    expect(controlToken({ key: "w", code: "KeyW" })).toBe("w");
+    expect(controlToken({ key: " ", code: "Space" })).toBe(" ");
+
+    expect(isJumpToken("w")).toBe(true);
+    expect(isJumpToken(" ")).toBe(true);
+    expect(isJumpToken("arrowdown")).toBe(false);
+
+    expect(inputFromTokens(new Set(["a"]), false).left).toBe(true);
+    expect(inputFromTokens(new Set(["d"]), false).right).toBe(true);
+    expect(inputFromTokens(new Set(["w"]), true).jumpPressed).toBe(true);
+    expect(inputFromTokens(new Set([" "]), true).jumpPressed).toBe(true);
+
+    expect(isGameControl({ key: "w", code: "KeyW" })).toBe(true);
+    expect(isGameControl({ key: " ", code: "Space" })).toBe(true);
+    expect(
+      isGameControl({ key: "ArrowUp", code: "ArrowUp", metaKey: true }),
+    ).toBe(false);
+    expect(
+      isGameControl({ key: "ArrowUp", code: "ArrowUp", altKey: true }),
+    ).toBe(false);
+    expect(isGameControl({ key: "Escape", code: "Escape" })).toBe(false);
+  });
+
+  it("keeps a keydown-edge jump queued even if the token already looked held", () => {
+    expect(queueJump(false, true, true, true)).toBe(true);
+    expect(queueJump(false, true, true, false)).toBe(false);
+  });
 });
