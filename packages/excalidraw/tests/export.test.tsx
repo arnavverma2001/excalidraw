@@ -1,11 +1,14 @@
 import React from "react";
+import { vi } from "vitest";
 
 import { SVG_NS } from "@excalidraw/common";
 
 import type { FileId } from "@excalidraw/element/types";
 
+import { actionSaveFileToDisk } from "../actions";
 import { getDefaultAppState } from "../appState";
 import { getDataURL } from "../data/blob";
+import { fileSave } from "../data/filesystem";
 import { encodePngMetadata } from "../data/image";
 import { serializeAsJSON } from "../data/json";
 import { Excalidraw } from "../index";
@@ -19,6 +22,14 @@ import { API } from "./helpers/api";
 import { render, waitFor } from "./test-utils";
 
 const { h } = window;
+
+vi.mock("../data/filesystem.ts", async (importOriginal) => {
+  const module = await importOriginal<typeof import("../data/filesystem")>();
+  return {
+    ...module,
+    fileSave: vi.fn(module.fileSave),
+  };
+});
 
 const testElements = [
   {
@@ -218,4 +229,63 @@ describe("export", () => {
     // src/tests/fixtures/svg-image-exporting-reference.svg
     expect(svgText).toMatchSnapshot(`svg export output`);
   });
+});
+
+// https://github.com/excalidraw/excalidraw/issues/12028
+describe("save to disk when the native file picker rejects", () => {
+  beforeEach(async () => {
+    await render(<Excalidraw />);
+    API.setElements([API.createElement({ type: "rectangle" })]);
+  });
+
+  afterEach(() => {
+    vi.mocked(fileSave).mockReset();
+    vi.restoreAllMocks();
+  });
+
+  // Not reproduced: on upstream Chromium 159 (not Debian's chromium package),
+  // both "Save to file" and PNG export opened the native chooser and wrote the
+  // file, including as an installed PWA, with no NotAllowedError/AbortError.
+  // The report ("This site can see edits you make" prompt flashing and
+  // closing) looks specific to the Debian Chromium build's File System Access
+  // permission handling, which jsdom cannot emulate.
+  it.todo(
+    "saves/exports on Debian-packaged Chromium where the file picker closes immediately",
+  );
+
+  it.each(["NotAllowedError", "AbortError"])(
+    "does not get stuck after the picker rejects with %s",
+    async (errorName) => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const consoleWarn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+
+      const rejection = new DOMException("picker rejected", errorName);
+      vi.mocked(fileSave).mockRejectedValueOnce(rejection);
+
+      API.executeAction(actionSaveFileToDisk);
+
+      await waitFor(() => {
+        expect(
+          errorName === "AbortError" ? consoleWarn : consoleError,
+        ).toHaveBeenCalledWith(rejection);
+      });
+      expect(fileSave).toHaveBeenCalledTimes(1);
+      expect(h.state.fileHandle).toBe(null);
+
+      const fileHandle = { name: "saved.excalidraw" } as FileSystemFileHandle;
+      vi.mocked(fileSave).mockResolvedValueOnce(fileHandle);
+
+      API.executeAction(actionSaveFileToDisk);
+
+      await waitFor(() => {
+        expect(h.state.fileHandle).toBe(fileHandle);
+      });
+      expect(fileSave).toHaveBeenCalledTimes(2);
+      expect(h.state.toast?.message).toBe("File saved.");
+    },
+  );
 });
