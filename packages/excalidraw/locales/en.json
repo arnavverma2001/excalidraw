@@ -230,6 +230,7 @@
     "close": "Close",
     "selectLanguage": "Select language",
     "scrollBackToContent": "Scroll back to content",
+    "minimap": "Minimap. Drag to move around the scene",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "resetZoom": "Reset zoom",
