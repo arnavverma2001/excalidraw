@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import React from "react";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
@@ -12,6 +13,7 @@ import { MobileToolBar } from "./MobileToolBar";
 import { FixedSideContainer } from "./FixedSideContainer";
 
 import { Island } from "./Island";
+import { Minimap } from "./minimap/Minimap";
 
 import { PenModeButton } from "./PenModeButton";
 
@@ -127,6 +129,13 @@ export const MobileMenu = ({
 
   return (
     <>
+      <div
+        className={clsx("excalidraw-minimap-anchor", {
+          "excalidraw-minimap-anchor--view-mode": appState.viewModeEnabled,
+        })}
+      >
+        <Minimap />
+      </div>
       {renderSidebars()}
       {/* welcome screen, bottom bar, and top bar all have the same z-index */}
       {/* ordered in this reverse order so that top bar is on top */}

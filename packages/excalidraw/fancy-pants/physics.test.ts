@@ -99,18 +99,8 @@ describe("fancy pants physics", () => {
       queued,
     );
     const runningLaunch = stepBody(running, [floor], runningInput, 1 / 120);
-    const runningApex = run(
-      runningLaunch,
-      [floor],
-      { right: true },
-      0.25,
-    );
-    const runningLanded = run(
-      runningLaunch,
-      [floor],
-      { right: true },
-      1.05,
-    );
+    const runningApex = run(runningLaunch, [floor], { right: true }, 0.25);
+    const runningLanded = run(runningLaunch, [floor], { right: true }, 1.05);
 
     expect(runningLaunch.vy).toBeLessThan(-600);
     expect(runningLaunch.vx).toBeGreaterThan(250);

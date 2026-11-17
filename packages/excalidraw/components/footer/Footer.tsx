@@ -4,6 +4,7 @@ import { actionShortcuts } from "../../actions";
 import { useTunnels } from "../../context/tunnels";
 import { ExitZenModeButton, UndoRedoActions, ZoomActions } from "../Actions";
 import { HelpButton } from "../HelpButton";
+import { Minimap } from "../minimap/Minimap";
 import { Section } from "../Section";
 import Stack from "../Stack";
 
@@ -34,6 +35,7 @@ const Footer = ({
             appState.zenModeEnabled,
         })}
       >
+        <Minimap />
         <Stack.Col gap={2}>
           <Section heading="canvasActions">
             <ZoomActions
