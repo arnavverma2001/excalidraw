@@ -30,11 +30,11 @@ import {
   renderMinimapContent,
   renderMinimapViewport,
   scrollForSceneCenter,
-} from "./minimap";
+} from "./minimapScene";
 
 import "./Minimap.scss";
 
-import type { MinimapTransform } from "./minimap";
+import type { MinimapTransform } from "./minimapScene";
 
 const localImages = new Map<string, HTMLImageElement>();
 

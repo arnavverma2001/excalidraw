@@ -152,8 +152,7 @@ export const FancyPantsMode = ({
       const dt = Math.min(0.05, (now - last) / 1000) || 1 / 60;
       last = now;
       const solids = solidsNow();
-      const jumpHeld =
-        keys.has("arrowup") || keys.has("w") || keys.has(" ");
+      const jumpHeld = keys.has("arrowup") || keys.has("w") || keys.has(" ");
       jumpPressed = queueJump(jumpPressed, jumpWasHeld, jumpHeld);
       jumpWasHeld = jumpHeld;
       const input = inputFromTokens(keys, jumpPressed);
@@ -233,11 +232,7 @@ export const FancyPantsMode = ({
       const drawHeight = current.h * CHARACTER_RENDER_SCALE;
       setSnapshot({
         left:
-          (visual.x +
-            current.w / 2 -
-            drawWidth / 2 +
-            cameraX) *
-            zoom +
+          (visual.x + current.w / 2 - drawWidth / 2 + cameraX) * zoom +
           state.offsetLeft,
         top:
           (visual.y + current.h - drawHeight + pose.drop + cameraY) * zoom +

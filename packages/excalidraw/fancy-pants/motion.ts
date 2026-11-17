@@ -766,8 +766,7 @@ function climbStick(phase: number, face: number, up: boolean): Stick {
   const hipX = CX + 1.8 * face;
   const shoulderX = CX + 2.8 * face;
   const headX = CX + 2.4 * face;
-  const cycle = (index: number) =>
-    (phase + index * 0.5) * Math.PI * 2;
+  const cycle = (index: number) => (phase + index * 0.5) * Math.PI * 2;
   const legs = [0, 1].map((index) => {
     const a = cycle(index);
     const ankleX = CX + face * (7.2 + Math.cos(a) * 1.6);
@@ -1115,13 +1114,12 @@ export function stepLook(
   const sy = 1 - clamp(compress, -0.35, 1.2) * BODY_SQUASH;
   const hairY = GROUND_Y + sy * (target.headY - GROUND_Y);
   const heightFromGround = Math.max(0, look.lastGroundY - sample.y - drop);
-  const shadowY =
-    GROUND_Y + heightFromGround / CHARACTER_RENDER_SCALE;
+  const shadowY = GROUND_Y + heightFromGround / CHARACTER_RENDER_SCALE;
   const shadowOpacity = sample.climbing
     ? 0
     : sample.onGround
-      ? 0.16
-      : 0.13 * (1 - clamp(heightFromGround / 140, 0, 0.8));
+    ? 0.16
+    : 0.13 * (1 - clamp(heightFromGround / 140, 0, 0.8));
 
   look.prevStick = cloneStick(target);
   look.visualX = sample.x;

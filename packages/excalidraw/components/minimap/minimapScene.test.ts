@@ -17,7 +17,7 @@ import {
   renderMinimapContent,
   scenePointToMinimap,
   scrollForSceneCenter,
-} from "./minimap";
+} from "./minimapScene";
 
 describe("minimap", () => {
   it("fits the scene inside the padding and round-trips coordinates", () => {
